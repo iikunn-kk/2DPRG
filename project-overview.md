@@ -457,7 +457,62 @@ public class DialogueTreeManager : Singleton<DialogueTreeManager>
 }
 ```
 
-### 5.10 Singleton 基类
+### 5.10 EnemyFsm (通用敌人状态机) *[重构 2024]*
+
+> **背景**：原项目每种敌人有独立的 `*PatrolState.cs` / `*ChaseState.cs` / `*AttackState.cs` 共 38 个文件，重复率 97%+，且 `Hurt`/`Dead` 用 bool hack 而非正式状态。
+> **重构方案**：创建通用 `EnemyFsm.cs` + `EnemyConfig_SO.cs`，消灭所有重复文件，Hurt/Dead 成为正式状态。
+
+```csharp
+// 文件: Assets/Scripts/Character/Enemies/EnemyFsm.cs
+// 取代所有独立的 *PatrolState / *ChaseState / *AttackState 脚本
+
+public class EnemyFsm : MonoBehaviour
+{
+    public EnemyConfig_SO config;        // 敌人参数配置（ScriptableObject）
+    public EnemyFsmState CurrentState { get; }
+
+    // 状态切换（唯一入口，保证互斥）
+    public void SwitchTo(EnemyFsmState newState);
+
+    // 事件方法（由 Enemy.cs 转发调用）
+    public void OnTakeDamage(Transform attacker);  // 受击 → 切换到 Hurt 状态
+    public void OnDie();                         // 死亡 → 切换到 Dead 状态
+}
+
+// 完整状态枚举（含 Hurt / Dead 正式状态）
+// 文件: Assets/Scripts/Character/Enemies/EnemyFsmState.cs
+public enum EnemyFsmState { Patrol, Chase, Attack, Hurt, Dead }
+```
+
+**敌人配置数据（ScriptableObject）**：
+
+```csharp
+// 文件: Assets/Scripts/Character/Enemies/EnemyConfig_SO.cs
+// 创建方式: Project 面板右键 → Create → Enemy → Enemy Config
+
+[CreateAssetMenu(fileName = "EnemyConfig", menuName = "Enemy/Enemy Config")]
+public class EnemyConfig_SO : ScriptableObject
+{
+    public float normalSpeed = 2f;
+    public float chaseSpeed = 4f;
+    public float lostTime = 3f;
+    public float wallFlipDelay = 0.2f;
+    public float waitTime = 2f;
+    public float hurtForce = 5f;
+    public bool hasAttackState = true;
+    public float attackRate = 2f;
+}
+```
+
+**迁移进度**：
+| 敌人 | 状态 | 说明 |
+|------|------|------|
+| ✅ Boar | 已迁移 | PatrolState/ChaseState 已删除，使用 EnemyFsm |
+| ⬜ 其余 11 种 | 待迁移 | 见阶段三计划 |
+
+---
+
+### 5.11 Singleton 基类
 
 ```csharp
 // MonoBehaviour 单例

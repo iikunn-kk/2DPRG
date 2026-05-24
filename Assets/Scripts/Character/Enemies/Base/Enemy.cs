@@ -1,12 +1,18 @@
 using System.Collections;
 using UnityEngine;
 
+/// <summary>
+/// 敌人基类。
+/// 兼容模式：优先使用挂载的 EnemyFsm 组件；若未挂载则回退旧版 BaseState 逻辑。
+/// 这样可以在迁移过程中逐个敌人切换，不影响未迁移的敌人。
+/// </summary>
 public class Enemy : MonoBehaviour
 {
     [HideInInspector] public Rigidbody2D rb;
     [HideInInspector] public Animator anim;
     [HideInInspector] public PhysicsCheck physicsCheck;
     [HideInInspector] public EnemiesAudio enemiesAudio;
+
     [Header("基本参数")]
     public float normalSpeed;
     public float chaseSpeed;
@@ -20,25 +26,34 @@ public class Enemy : MonoBehaviour
     public Vector2 checkSize;
     public float checkDistance;
     public LayerMask attackLayer;
-    // 增加一个变量来控制翻转后的延迟,防止原地反复发生碰撞检测
+
     [Header("延时检测计时器")]
     public float flipDelay = 0.2f;
     public float flipTimer = 0f;
+
     [Header("碰墙Idle计时器")]
-    public float waitTime = 2f;          // 等待时间设定值为2秒
-    public float waitTimeCounter;   // 等待时间计数器
-    public bool wait;               // 是否处于等待状态
+    public float waitTime = 2f;
+    public float waitTimeCounter;
+    public bool wait;
 
-    public float lostTime;//前方丢失玩家目标时候等待一定时间就从追击状态切换回巡逻状态的等待时间
-    public float lostTimeCounter;//前方丢失玩家目标时候等待一定时间就从追击状态切换回巡逻状态的切换时间计时器
+    public float lostTime;
+    public float lostTimeCounter;
 
-    [Header("状态")]
+    [Header("状态（保留字段以兼容动画事件）")]
     public bool isHurt;
     public bool isDead;
+
+    // ========== 旧版状态机（迁移完成后可删除）==========
     private BaseState currentState;
     protected BaseState patrolState;
     protected BaseState chaseState;
     protected BaseState attackState;
+
+    // ========== 新版 FSM 引用 ==========
+    private EnemyFsm _fsm;
+
+    // 标记是否使用新版 FSM
+    private bool UseFsm => _fsm != null;
 
     protected virtual void Awake()
     {
@@ -46,44 +61,72 @@ public class Enemy : MonoBehaviour
         anim = GetComponent<Animator>();
         physicsCheck = GetComponent<PhysicsCheck>();
         enemiesAudio = GetComponent<EnemiesAudio>();
+        _fsm = GetComponent<EnemyFsm>(); // 如果没有挂载 EnemyFsm，则为 null
         currentSpeed = normalSpeed;
         waitTimeCounter = waitTime;
     }
+
     void OnEnable()
     {
-        currentState = patrolState;
-        currentState.OnEnter(this);
+        if (UseFsm)
+        {
+            // FSM 的 OnEnable 内部会切换到 Patrol，这里不需要额外操作
+        }
+        else
+        {
+            currentState = patrolState;
+            if (currentState != null)
+                currentState.OnEnter(this);
+        }
     }
 
     private void Update()
     {
         faceDir = new Vector3(-transform.localScale.x, 0, 0);
-        // 减少翻转计时器
+
         if (flipTimer > 0)
         {
             flipTimer -= Time.deltaTime;
         }
-        currentState.LogicUpdate();
-        TimeCounter();
+
+        if (!UseFsm && currentState != null)
+        {
+            currentState.LogicUpdate();
+            TimeCounter();
+        }
+        // FSM 的 Update 由 EnemyFsm 自己驱动，不需要这里调用
     }
 
     private void FixedUpdate()
     {
-        if (!isHurt & !isDead)//按位与计算同为1才是1
-            Move();
-
-        currentState.PhysicsUpdate();
+        if (UseFsm)
+        {
+            // FSM 的 FixedUpdate 由 EnemyFsm 自己驱动
+        }
+        else
+        {
+            // 修复原 bug：将按位与 & 改为逻辑与 &&
+            if (!isHurt && !isDead)
+                Move();
+            if (currentState != null)
+                currentState.PhysicsUpdate();
+        }
     }
+
     private void OnDisable()
     {
-        currentState.OnExit();
+        if (!UseFsm && currentState != null)
+        {
+            currentState.OnExit();
+        }
     }
+
     public virtual void Move()
     {
         if (!wait)
         {
             rb.velocity = new Vector2(currentSpeed * faceDir.x, rb.velocity.y);
-            anim.SetBool("walk", true); // 播放walk动画
+            anim.SetBool("walk", true);
         }
     }
 
@@ -91,12 +134,12 @@ public class Enemy : MonoBehaviour
     {
         if (wait)
         {
-            waitTimeCounter -= Time.deltaTime;  // 递减计时器
+            waitTimeCounter -= Time.deltaTime;
             if (waitTimeCounter <= 0)
             {
-                wait = false;                   // 结束等待
-                waitTimeCounter = waitTime;     // 重置计时器
-                transform.localScale = new Vector3(faceDir.x, transform.localScale.y, transform.localScale.z); // 翻转敌人
+                wait = false;
+                waitTimeCounter = waitTime;
+                transform.localScale = new Vector3(faceDir.x, transform.localScale.y, transform.localScale.z);
             }
         }
         if (!FoundPlayer() && lostTimeCounter > 0)
@@ -114,26 +157,38 @@ public class Enemy : MonoBehaviour
         return Physics2D.BoxCast(transform.position + (Vector3)centerOffset, checkSize, 0, faceDir, checkDistance, attackLayer);
     }
 
+    // 保留旧版 SwitchState 以兼容未迁移的敌人
     public void SwitchState(EnemyState state)
     {
+        if (UseFsm) return; // 使用 FSM 后不再调用此方法
+
         var newState = state switch
         {
             EnemyState.Patrol => patrolState,
-            EnemyState.Chase => chaseState,
+            EnemyState.Chase  => chaseState,
             EnemyState.Attack => attackState,
             _ => null
         };
-        currentState.OnExit();
+        if (newState == null) return;
+        currentState?.OnExit();
         currentState = newState;
         currentState.OnEnter(this);
-
     }
-    #region 事件执行方法
+
+    // ============================================================
+    //  事件方法（新版通过 FSM 调用，旧版直接调用）
+    // ============================================================
+
     public void OnTakeDamage(Transform attackTrans)
     {
+        if (UseFsm)
+        {
+            _fsm.OnTakeDamage(attackTrans);
+            return;
+        }
 
+        // ---- 旧版逻辑（迁移完成后可删除）----
         attacker = attackTrans;
-        //转身
         Debug.Log("发生翻转");
         if (attackTrans.position.x - transform.position.x > 0)
             transform.localScale = new Vector3(-transform.localScale.x, transform.localScale.y, transform.localScale.z);
@@ -143,11 +198,15 @@ public class Enemy : MonoBehaviour
         anim.SetTrigger("hurt");
         Vector2 dir = new Vector2(transform.position.x - attackTrans.position.x, 0).normalized;
         rb.velocity = new Vector2(0, rb.velocity.y);
-        enemiesAudio.audioSource.clip = enemiesAudio.hurtAudio;
-        enemiesAudio.audioSource.Play();
+        if (enemiesAudio != null && enemiesAudio.hurtAudio != null)
+        {
+            enemiesAudio.audioSource.clip = enemiesAudio.hurtAudio;
+            enemiesAudio.audioSource.Play();
+        }
         Debug.Log("播放" + gameObject.name + "的受伤音效");
         StartCoroutine(OnHurt(dir));
     }
+
     private IEnumerator OnHurt(Vector2 dir)
     {
         rb.AddForce(dir * hurtForce, ForceMode2D.Impulse);
@@ -155,38 +214,46 @@ public class Enemy : MonoBehaviour
         isHurt = false;
     }
 
-
     public void OnDie()
     {
+        if (UseFsm)
+        {
+            _fsm.OnDie();
+            return;
+        }
+
+        // ---- 旧版逻辑（迁移完成后可删除）----
         gameObject.layer = 2;
-
         currentSpeed = 0;
-
         anim.SetBool("dead", true);
         isDead = true;
-
-        enemiesAudio.audioSource.clip = enemiesAudio.deadAudio;
-        enemiesAudio.audioSource.Play();
+        if (enemiesAudio != null && enemiesAudio.deadAudio != null)
+        {
+            enemiesAudio.audioSource.clip = enemiesAudio.deadAudio;
+            enemiesAudio.audioSource.Play();
+        }
         Debug.Log(this.gameObject.name + "当前对象的死亡音效播放");
-
-        StartCoroutine("DestroyObject");
+        StartCoroutine(DestroyObject());
     }
 
     protected virtual void DestroyAfterAnimation()
     {
-        // Destroy(gameObject);
+        // 由动画事件调用，子类可 override
     }
-    #endregion
 
     private void OnDrawGizmosSelected()
     {
-        Gizmos.DrawWireSphere(transform.position + (Vector3)centerOffset + new Vector3(checkDistance * -transform.localScale.x, 0), 0.2f);
+        Gizmos.DrawWireSphere(
+            transform.position + (Vector3)centerOffset +
+            new Vector3(checkDistance * -transform.localScale.x, 0),
+            0.2f
+        );
     }
 
     IEnumerator DestroyObject()
     {
         Debug.Log("销毁死亡的物体");
         yield return new WaitForSeconds(1f);
-        Destroy(gameObject);//销毁该物体
+        Destroy(gameObject);
     }
 }
