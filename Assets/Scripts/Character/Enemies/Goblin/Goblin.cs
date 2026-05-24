@@ -1,13 +1,8 @@
-using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
-
 public class Goblin : Enemy
 {
     protected override void Awake()
     {
         base.Awake();
-        patrolState = new GoblinPatrolState();
-        chaseState = new GoblinChaseState();
+        // 使用挂载的 EnemyFsm 组件驱动行为，不再需要手动初始化状态
     }
 }
