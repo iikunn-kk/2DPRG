@@ -165,7 +165,7 @@ public class Enemy : MonoBehaviour
         var newState = state switch
         {
             EnemyState.Patrol => patrolState,
-            EnemyState.Chase  => chaseState,
+            EnemyState.Chase => chaseState,
             EnemyState.Attack => attackState,
             _ => null
         };

@@ -39,9 +39,9 @@ public class EnemyFsm : MonoBehaviour
     private void Awake()
     {
         // 自动获取组件（如果 Inspector 未手动拖入）
-        if (enemy == null)        enemy = GetComponent<Enemy>();
-        if (rb == null)           rb = GetComponent<Rigidbody2D>();
-        if (anim == null)         anim = GetComponent<Animator>();
+        if (enemy == null) enemy = GetComponent<Enemy>();
+        if (rb == null) rb = GetComponent<Rigidbody2D>();
+        if (anim == null) anim = GetComponent<Animator>();
         if (physicsCheck == null) physicsCheck = GetComponent<PhysicsCheck>();
         if (enemiesAudio == null) enemiesAudio = GetComponent<EnemiesAudio>();
 
@@ -59,7 +59,7 @@ public class EnemyFsm : MonoBehaviour
         switch (_currentState)
         {
             case EnemyFsmState.Patrol: UpdatePatrol(); break;
-            case EnemyFsmState.Chase:  UpdateChase();  break;
+            case EnemyFsmState.Chase: UpdateChase(); break;
             case EnemyFsmState.Attack: UpdateAttack(); break;
             case EnemyFsmState.Hurt:   /* Hurt 由协程驱动，Update 不做逻辑 */ break;
             case EnemyFsmState.Dead:   /* Dead 是终态 */ break;
