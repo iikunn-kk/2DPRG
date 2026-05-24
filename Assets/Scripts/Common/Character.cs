@@ -135,12 +135,12 @@ public class Character : MonoBehaviour
     {
         float finalDamage = 0;
         //是否暴击
-        bool iscirticak = Random.value < attacker.characterStats.CirticalChance;
-        // Debug.Log("是否暴击：" + iscirticak);
+        bool isCritical = Random.value < attacker.characterStats.CriticalChance;
+        // Debug.Log("是否暴击：" + isCritical);
         //基础伤害的计算，在最小和最大之间随机取一个伤害值
         float damage = Random.Range(attacker.characterStats.MinDamage, attacker.characterStats.MaxDamage);
         // Debug.Log("基础伤害为:" + damage);
-        if (iscirticak)
+        if (isCritical)
         {
             //暴击伤害的数值计算
             finalDamage = damage * attacker.characterStats.CriticalMultiplier;

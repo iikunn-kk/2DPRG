@@ -23,7 +23,7 @@ public class ChangeCameraToIceScene : StateMachineBehaviour
         if (cameraChangeManager != null)
         {
             // 调用管理脚本的「切换到冰雪场景」方法
-            cameraChangeManager.SwtichToIceScene();
+            cameraChangeManager.SwitchToIceScene();
         }
     }
 

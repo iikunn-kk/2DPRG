@@ -3,7 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
-public class UImanager : Singleton<UImanager>
+public class UIManager : Singleton<UIManager>
 {
     private PlayerInputController inputControl;
     public PlayerStatBar playerStatBar;

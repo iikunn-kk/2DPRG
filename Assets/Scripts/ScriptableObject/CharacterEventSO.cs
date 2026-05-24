@@ -12,6 +12,6 @@ public class CharacterEventSO : ScriptableObject
     // 触发事件的方法进行广播
     public void RaiseEvent(Character character)
     {
-        OnEventRaised.Invoke(character); // 调用所有订阅者的方法
+        OnEventRaised?.Invoke(character); // 调用所有订阅者的方法（添加空检查避免无订阅者时崩溃）
     }
 }

@@ -1,7 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
-using UnityEditor;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class PlayerAudio : MonoBehaviour
 {
@@ -18,51 +18,29 @@ public class PlayerAudio : MonoBehaviour
     public AudioClip hurt;
     public bool attackAudio;
 
-    private void Awake()
-    {
-        // audioSource1 = GetComponent<AudioSource>();
-    }
-
     public void PlayWithJump()
     {
         audioSource1.clip = jumping;
         audioSource1.Play();
     }
 
-    // public void PlayWithRunning()
-    // {
-    //     if (!audioSource2.isPlaying)
-    //     {
-    //         audioSource2.clip = running;
-    //         audioSource2.Play();
-    //     }
-    // }
-
-    // public void StopPlay()
-    // {
-    //     if (audioSource2.isPlaying)
-    //     {
-    //         audioSource2.Stop();
-    //     }
-    // }
-    public void PlayRunningSound(string mapType)
+    /// <summary>
+    /// 根据当前场景自动选择跑步音效（无参数，可直接绑定 UnityEvent）。
+    /// 场景名含 Snow/Ice → 雪地 | Lava/Volcano → 火山 | Desert/Rocky/Mount → 岩石 | 其余默认森林
+    /// </summary>
+    public void PlayRunningSound()
     {
+        string sceneName = SceneManager.GetActiveScene().name.ToLowerInvariant();
+
         AudioClip clipToPlay = running;
-        switch (mapType)
-        {
-            case "Forest":
-                clipToPlay = grassRunning;
-                break;
-            case "Snow":
-                clipToPlay = snowRunning;
-                break;
-            case "Volcano":
-                clipToPlay = volcanoRunning;
-                break;
-            case "RockyTerrain":
-                clipToPlay = rockyTerrainRunning;
-                break;
-        }
+        if (sceneName.Contains("snow") || sceneName.Contains("ice"))
+            clipToPlay = snowRunning;
+        else if (sceneName.Contains("lava") || sceneName.Contains("volcano"))
+            clipToPlay = volcanoRunning;
+        else if (sceneName.Contains("desert") || sceneName.Contains("rocky") || sceneName.Contains("mount"))
+            clipToPlay = rockyTerrainRunning;
+        // else: 默认森林/草地音效 (grassRunning 与 running 相同)
+
         audioSource2.clip = clipToPlay;
         audioSource2.Play();
     }

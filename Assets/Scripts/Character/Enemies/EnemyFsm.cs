@@ -29,6 +29,10 @@ public class EnemyFsm : MonoBehaviour
     // ---------- 攻击冷却 ----------
     private float _attackCooldownRemaining;
 
+    // ---------- 缓存的 WaitForSeconds（避免 GC 分配）----------
+    private static readonly WaitForSeconds HurtWait = new WaitForSeconds(0.45f);
+    private static readonly WaitForSeconds DestroyDelay = new WaitForSeconds(1f);
+
     // ---------- 属性 ----------
     public EnemyFsmState CurrentState => _currentState;
 
@@ -134,6 +138,8 @@ public class EnemyFsm : MonoBehaviour
         {
             case EnemyFsmState.Patrol:
                 if (config != null) enemy.currentSpeed = config.normalSpeed;
+                // 初始化 faceDir：根据当前朝向确定移动方向（确保首次巡逻时能动）
+                enemy.faceDir = new Vector3(-transform.localScale.x, 0, 0);
                 anim?.SetBool("walk", true);
                 Debug.Log($"[{gameObject.name}] 进入 Patrol 状态");
                 break;
@@ -166,7 +172,7 @@ public class EnemyFsm : MonoBehaviour
                 anim?.SetBool("dead", true);
                 enemy.isDead = true;
                 enemy.currentSpeed = 0;
-                gameObject.layer = 2; // "Ignore Raycast" 层，避免继续交互
+                gameObject.layer = LayerMask.NameToLayer("Ignore Raycast"); // 避免继续交互
                 if (enemiesAudio != null && enemiesAudio.deadAudio != null)
                 {
                     enemiesAudio.audioSource.clip = enemiesAudio.deadAudio;
@@ -359,7 +365,7 @@ public class EnemyFsm : MonoBehaviour
         float force = config != null ? config.hurtForce : 5f;
         rb.AddForce(dir * force, ForceMode2D.Impulse);
 
-        yield return new WaitForSeconds(0.45f);
+        yield return HurtWait;
 
         // 恢复 → 根据是否发现玩家决定下一个状态
         if (_currentState == EnemyFsmState.Hurt) // 防止期间死亡
@@ -384,7 +390,7 @@ public class EnemyFsm : MonoBehaviour
 
     private IEnumerator DestroyAfterDeath()
     {
-        yield return new WaitForSeconds(1f);
+        yield return DestroyDelay;
         Destroy(gameObject);
     }
 

@@ -85,18 +85,18 @@ public class CharacterStats : MonoBehaviour
             characterData.criticalMultiplier = value;
         }
     }
-    public float CirticalChance
+    public float CriticalChance
     {
         get
         {
             if (characterData != null)
-                return characterData.cirticalChance;
+                return characterData.criticalChance;
             else
                 return 0;
         }
         set
         {
-            characterData.cirticalChance = value;
+            characterData.criticalChance = value;
         }
     }
     public int CurrentLevel

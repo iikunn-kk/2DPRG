@@ -7,6 +7,9 @@ using UnityEngine.SceneManagement;
 using UnityEngine.UIElements;
 public class SceneController : Singleton<SceneController>
 {
+    private const string FirstLevelSceneName = "Training Ground";
+    private const string MainSceneName = "Main";
+
     public GameObject playerPrefab;    // 玩家预制体引用
     public SceneFader sceneFaderPrefab;    // 场景切换淡入淡出预制体引用
 
@@ -23,7 +26,6 @@ public class SceneController : Singleton<SceneController>
         // GameObject player = GameManager.Instance.characterStats.gameObject;
     }
     // 场景传送入口方法
-    [System.Obsolete]
     public void TransitionToDestination(TransitionPoint transitionPoint)
     {
         switch (transitionPoint.transitionType)
@@ -38,7 +40,6 @@ public class SceneController : Singleton<SceneController>
         }
     }
     // 场景过渡协程（核心逻辑）
-    [System.Obsolete]
     public IEnumerator Transition(string sceneName, TransitionDestination.DestinationTag destinationTag)
     {
         // GameObject player = GameManager.Instance.characterStats.gameObject;
@@ -79,11 +80,10 @@ public class SceneController : Singleton<SceneController>
         }
     }
     // 获取场景中的目标传送点
-    [System.Obsolete]
     private TransitionDestination GetDestination(TransitionDestination.DestinationTag destinationTag)
     {
         // 遍历场景中的所有目标传送点
-        var entrances = FindObjectsOfType<TransitionDestination>();
+        var entrances = FindObjectsByType<TransitionDestination>(FindObjectsInactive.Include, FindObjectsSortMode.None);
         for (int i = 0; i < entrances.Length; i++)
         {
             if (entrances[i].destinationTag == destinationTag)
@@ -93,7 +93,7 @@ public class SceneController : Singleton<SceneController>
     }
     public void TransitionToFirstLevel()//主场景的新游戏选项执行的功能函数
     {
-        StartCoroutine(LoadLevel("Training Ground"));
+        StartCoroutine(LoadLevel(FirstLevelSceneName));
     }
 
     public void TransitionToLoadGame()//主场景的继续游戏选项执行的功能函数
@@ -147,7 +147,7 @@ public class SceneController : Singleton<SceneController>
         UnityEngine.Debug.Log("当前保存的场景名字是：" + SceneManager.GetActiveScene().name);
         UnityEngine.Debug.Log("返回主场景，人物当前场景数据保存完毕");
         yield return StartCoroutine(fade.FadeOut(2f));//淡出
-        yield return SceneManager.LoadSceneAsync("Main");//返回主场景
+        yield return SceneManager.LoadSceneAsync(MainSceneName);//返回主场景
         yield return StartCoroutine(fade.FadeIn(2f));//淡入
         yield break;
     }
@@ -157,7 +157,7 @@ public class SceneController : Singleton<SceneController>
         UnityEngine.Debug.Log("返回主场景");
         SceneFader fade = FindFirstObjectByType<SceneFader>();
         yield return StartCoroutine(fade.FadeOut(2f));
-        yield return SceneManager.LoadSceneAsync("Main");
+        yield return SceneManager.LoadSceneAsync(MainSceneName);
         yield return StartCoroutine(fade.FadeIn(2f));
         yield break;
     }

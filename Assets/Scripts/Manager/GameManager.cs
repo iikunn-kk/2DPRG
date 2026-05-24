@@ -33,7 +33,6 @@ public class GameManager : Singleton<GameManager>
         characterStats = player; // 更新当前角色引用
     }
 
-#pragma warning disable CS0618 // 禁用过时API警告
     /// <summary>
     /// 获取场景入口位置
     /// </summary>
@@ -41,12 +40,11 @@ public class GameManager : Singleton<GameManager>
     public Transform GetEntrance()
     {
         // 遍历场景中所有过渡目标组件
-        foreach (var item in FindObjectsOfType<TransitionDestination>())
+        foreach (var item in FindObjectsByType<TransitionDestination>(FindObjectsInactive.Include, FindObjectsSortMode.None))
         {
             if (item.destinationTag == TransitionDestination.DestinationTag.ENTER)
                 return item.transform; // 返回首个入口点
         }
         return null;
     }
-#pragma warning restore CS0618
 }

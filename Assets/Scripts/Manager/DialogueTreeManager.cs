@@ -9,6 +9,12 @@ public class DialogueTreeManager : Singleton<DialogueTreeManager>
     public Animator anim;
     public Rigidbody2D rb;// 刚体组件
     public float maxHealth;
+
+    [Header("对话位置（在 Inspector 中配置）")]
+    public Vector3 upPosition;
+    public Vector3 upToTopPosition;
+    public Vector3 upToVolcanoPosition;
+
     // public PlayerController player;
     protected override void Awake()
     {
@@ -16,19 +22,17 @@ public class DialogueTreeManager : Singleton<DialogueTreeManager>
     }
     void Update()
     {
-        // player = GameObject.Find("Player(Clone)");
-        player = GameObject.FindGameObjectWithTag("Player");
-        if (player != null)
+        // 只在 player 为 null 时查找并缓存引用，避免每帧重复查找
+        if (player == null)
         {
-            // Debug.Log("找到了");
-            playerController = player.GetComponent<PlayerController>();
-            anim = player.GetComponent<Animator>();
-            rb = player.GetComponent<Rigidbody2D>();
-            CharacterCurrentMaxHealth();
-        }
-        else
-        {
-            // Debug.Log("未找到Player");
+            player = GameObject.FindGameObjectWithTag("Player");
+            if (player != null)
+            {
+                playerController = player.GetComponent<PlayerController>();
+                anim = player.GetComponent<Animator>();
+                rb = player.GetComponent<Rigidbody2D>();
+                CharacterCurrentMaxHealth();
+            }
         }
     }
     public void OndialogueStopMove()
@@ -68,15 +72,15 @@ public class DialogueTreeManager : Singleton<DialogueTreeManager>
 
     public void SetPlayerPositionUp()
     {
-        player.transform.position = new Vector3(750, 31, 0);
+        player.transform.position = upPosition;
     }
     public void SetPlayerPositionUpToTop()
     {
-        player.transform.position = new Vector3(744, 69.5f, 0);
+        player.transform.position = upToTopPosition;
     }
     public void SetPlayerPositionUpToVolcano()
     {
-        player.transform.position = new Vector3(11.9f, -1.4f, 0);
+        player.transform.position = upToVolcanoPosition;
     }
 
     public void CharacterCurrentMaxHealth()

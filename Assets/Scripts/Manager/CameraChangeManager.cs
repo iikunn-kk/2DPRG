@@ -46,7 +46,7 @@ public class CameraChangeManager : MonoBehaviour
         forestSpritePack.SetActive(true);
     }
 
-    public void SwtichToIceScene()
+    public void SwitchToIceScene()
     {
         //禁用森林场景
         forestSpritePack.SetActive(false);

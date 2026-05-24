@@ -11,7 +11,7 @@ public class CharacterData_SO : ScriptableObject
     public float minDamage;
     public float maxDamage;
     public float criticalMultiplier;//暴击增幅百分比
-    public float cirticalChance;//暴击率
+    public float criticalChance;//暴击率
     [Header("滑铲能量条")]
     public float maxPower;//最大能量
     public float currentPower;//当前能量

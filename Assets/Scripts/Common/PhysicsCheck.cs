@@ -23,17 +23,17 @@ public class PhysicsCheck : MonoBehaviour
     public bool onWall;
     public LayerMask groundLayer;
     public LayerMask airWallLayer;
-    public float checkRaduis;
+    public float checkRadius = 0.15f;
     private void Awake()
     {
-
-
         coll = GetComponent<CapsuleCollider2D>();
         rb = GetComponent<Rigidbody2D>();
         if (!manual)
         {
             rightOffset = new Vector2((coll.bounds.size.x + coll.offset.x) / 2, coll.bounds.size.y / 2);
             leftOffset = new Vector2(-rightOffset.x, rightOffset.y);
+            // 补上底部偏移：collider 底部中心位置（角色脚底）
+            bottomOffset = new Vector2(0, coll.offset.y - coll.size.y / 2);
         }
         if (isPlayer)
             playerController = GetComponent<PlayerController>();
@@ -46,24 +46,24 @@ public class PhysicsCheck : MonoBehaviour
     public void Check()
     {
         //检测地面
-        isGround = Physics2D.OverlapCircle((Vector2)transform.position + bottomOffset, checkRaduis, groundLayer);
-        EventCenter.Instance.EventTrigger<bool>("isGround", false);
+        isGround = Physics2D.OverlapCircle((Vector2)transform.position + bottomOffset, checkRadius, groundLayer);
+        EventCenter.Instance.EventTrigger<bool>("isGround", isGround);
         //  检测左边实体墙
-        touchLeftWall = Physics2D.OverlapCircle((Vector2)transform.position + leftOffset, checkRaduis, groundLayer);
+        touchLeftWall = Physics2D.OverlapCircle((Vector2)transform.position + leftOffset, checkRadius, groundLayer);
         //  检测右边实体墙
-        touchRightWall = Physics2D.OverlapCircle((Vector2)transform.position + rightOffset, checkRaduis, groundLayer);
+        touchRightWall = Physics2D.OverlapCircle((Vector2)transform.position + rightOffset, checkRadius, groundLayer);
         //检测左边空气墙
-        touchLeftAirWall = Physics2D.OverlapCircle((Vector2)transform.position + leftOffset, checkRaduis, airWallLayer);
+        touchLeftAirWall = Physics2D.OverlapCircle((Vector2)transform.position + leftOffset, checkRadius, airWallLayer);
         //检测右边空气墙
-        touchRightAirWall = Physics2D.OverlapCircle((Vector2)transform.position + rightOffset, checkRaduis, airWallLayer);
+        touchRightAirWall = Physics2D.OverlapCircle((Vector2)transform.position + rightOffset, checkRadius, airWallLayer);
         if (isPlayer)
             onWall = ((touchLeftWall && playerController.inputDirection.x < 0f) || (touchRightWall && playerController.inputDirection.x > 0f)) && !isGround;
     }
 
     private void OnDrawGizmosSelected()
     {
-        Gizmos.DrawWireSphere((Vector2)transform.position + bottomOffset, checkRaduis);
-        Gizmos.DrawWireSphere((Vector2)transform.position + leftOffset, checkRaduis);
-        Gizmos.DrawWireSphere((Vector2)transform.position + rightOffset, checkRaduis);
+        Gizmos.DrawWireSphere((Vector2)transform.position + bottomOffset, checkRadius);
+        Gizmos.DrawWireSphere((Vector2)transform.position + leftOffset, checkRadius);
+        Gizmos.DrawWireSphere((Vector2)transform.position + rightOffset, checkRadius);
     }
 }

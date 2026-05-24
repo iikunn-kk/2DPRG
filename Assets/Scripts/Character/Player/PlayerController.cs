@@ -59,6 +59,9 @@ public class PlayerController : Singleton<PlayerController>
     private Coroutine _slideCoroutine;
     private Coroutine _jumpResetCoroutine;
 
+    // 事件委托字段：必须存为字段，确保 Add/Remove 使用同一个引用，防止场景切换时事件泄漏
+    private UnityAction<bool> _onGroundChanged;
+
     // ============================================================
     //  Unity 生命周期
     // ============================================================
@@ -93,14 +96,16 @@ public class PlayerController : Singleton<PlayerController>
 
     private void OnEnable()
     {
-        EventCenter.Instance.AddEventListener<bool>("isGround", CoyoteTime =>
+        _onGroundChanged = CoyoteTime =>
         {
             if (CoyoteTime == false)
             {
+                if (rb == null) return; // 场景切换时 rb 可能已被销毁
                 rb.gravityScale = 0;
                 StartCoroutine(WaitForCoyoteTime());
             }
-        });
+        };
+        EventCenter.Instance.AddEventListener<bool>("isGround", _onGroundChanged);
         inputControl.Enable();
         GameManager.Instance.RigisterPlayer(characterStats);
         Debug.Log("注册成功");
@@ -114,13 +119,11 @@ public class PlayerController : Singleton<PlayerController>
 
     private void OnDisable()
     {
-        EventCenter.Instance.RemoveEventListener<bool>("isGround", CoyoteTime =>
+        if (_onGroundChanged != null)
         {
-            if (CoyoteTime == false)
-            {
-                rb.gravityScale = 0;
-            }
-        });
+            EventCenter.Instance.RemoveEventListener<bool>("isGround", _onGroundChanged);
+            _onGroundChanged = null;
+        }
         if (inputControl != null)
         {
             inputControl.Disable();
@@ -142,6 +145,7 @@ public class PlayerController : Singleton<PlayerController>
         }
 
         CheckState();
+        UpdateMovementState();
     }
 
     private void FixedUpdate()
@@ -168,10 +172,12 @@ public class PlayerController : Singleton<PlayerController>
         if (_state == PlayerState.Dead && newState != PlayerState.Dead)
             return;
 
-        // Hurt 可以被 Dead 打断，但不会被 Attack/Jump/Slide 覆盖
+        // Hurt 可以被 Dead 打断、可以恢复（Idle/Fall/Run）、允许重新受击，
+        // 但禁止 Attack/Jump/Slide 在受伤期间激活
         if (_state == PlayerState.Hurt &&
-            newState != PlayerState.Dead &&
-            newState != PlayerState.Hurt) // 允许重新受击
+            (newState == PlayerState.Attack ||
+             newState == PlayerState.Jump ||
+             newState == PlayerState.Slide))
             return;
 
         ExitState(_state);
@@ -181,29 +187,41 @@ public class PlayerController : Singleton<PlayerController>
 
     private void EnterState(PlayerState state)
     {
+        // 关键：同步 bool 字段 → Animator 通过 PlayerAnimation.SetAnimation() 读取这些字段
         switch (state)
         {
+            case PlayerState.Idle:
+                break;
             case PlayerState.Run:
                 PlayRunAudio?.Invoke();
                 break;
             case PlayerState.Jump:
+                isJumping = true;
                 playerAudio?.PlayWithJump();
                 break;
+            case PlayerState.Fall:
+                break;
+            case PlayerState.Crouch:
+                isCrouch = true;
+                break;
             case PlayerState.Attack:
+                isAttack = true;
                 playerAnimation?.PlayAttack();
                 break;
             case PlayerState.Slide:
-                // Slide 的 Enter 逻辑在 Slide() 输入回调中处理
+                isSlide = true;
                 break;
             case PlayerState.Hurt:
-                // Hurt 的 Enter 逻辑在 GetHurt() 中处理
+                isHurt = true;
+                playerAnimation?.PlayHurt();
                 break;
             case PlayerState.Dead:
+                isDead = true;
                 inputControl.Gameplay.Disable();
                 PausePanel.Instance?.DeadToRestartGame();
                 break;
             case PlayerState.Dialogue:
-                // 暂停移动输入（FixedUpdate 中已拦截）
+                isDialogue = true;
                 break;
         }
     }
@@ -420,6 +438,50 @@ public class PlayerController : Singleton<PlayerController>
         if (physicsCheck.onWall)
         {
             rb.velocity = new Vector2(rb.velocity.x, 0f);
+        }
+    }
+
+    /// <summary>
+    /// 根据物理状态自动检测并切换 Idle/Run/Fall 状态。
+    /// 仅当当前不是手动触发的动作状态（Attack/Slide/Hurt/Dead/Dialogue/Crouch）时才执行。
+    /// </summary>
+    private void UpdateMovementState()
+    {
+        // 动作状态由输入回调管理，不自动切换
+        if (_state == PlayerState.Attack || _state == PlayerState.Slide ||
+            _state == PlayerState.Hurt || _state == PlayerState.Dead ||
+            _state == PlayerState.Dialogue || _state == PlayerState.Crouch)
+            return;
+
+        // Jump 状态由 Jump() 输入回调 + ResetJumpingState 协程管理
+        if (_state == PlayerState.Jump)
+        {
+            // 跳跃过程中落地 → 切换到 Idle/Run
+            if (physicsCheck.isGround && rb.velocity.y <= 0.5f)
+            {
+                SwitchTo(Mathf.Abs(rb.velocity.x) > 0.1f ? PlayerState.Run : PlayerState.Idle);
+            }
+            return;
+        }
+
+        if (physicsCheck.isGround)
+        {
+            if (Mathf.Abs(rb.velocity.x) > 0.1f)
+            {
+                if (_state != PlayerState.Run)
+                    SwitchTo(PlayerState.Run);
+            }
+            else
+            {
+                if (_state != PlayerState.Idle)
+                    SwitchTo(PlayerState.Idle);
+            }
+        }
+        else
+        {
+            // 空中：上升=Jump，下落=Fall
+            if (_state != PlayerState.Fall)
+                SwitchTo(PlayerState.Fall);
         }
     }
 

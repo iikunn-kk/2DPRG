@@ -29,40 +29,24 @@ public class TransitionPoint : MonoBehaviour
 
     // public SceneController sceneController;
 
-    [System.Obsolete]
     void Awake()
     {
         inputControl = new PlayerInputController();
         inputControl.Gameplay.Confirm.started += PortalTransform;
     }
-    /// <summary>
-    /// 该方法已过时，每帧更新时检查是否满足传送条件。
-    /// 当玩家按下 E 键且处于可传送状态时，触发传送逻辑。
-    /// </summary>
+
     private void OnEnable()
     {
         inputControl.Enable();
     }
+
     private void OnDisable()
     {
         inputControl.Disable();
     }
-    void Update()
-    {
-        // // 检查玩家是否按下 E 键且处于可传送状态
-        // if (Input.GetKeyDown(KeyCode.E) && canTrans)
-        // {
-        //     Debug.Log("传送");
-        //     // 调用场景控制器的传送方法，传入当前传送点实例
-        //     SceneController.Instance.TransitionToDestination(this);
-        // }
-        // else
-        // {
-        //     //Debug.Log("SceneController 未初始化");
-        // }
-    }
+
     /// <summary>
-    /// 当玩家碰撞体持续停留在传送点碰撞体内时调用此方法。
+    /// 当玩家碰撞体持续停留在传送点碰撞体内时调用。
     /// 若碰撞对象为玩家，则将可传送标记设置为 true。
     /// </summary>
     /// <param name="other">与传送点发生碰撞的碰撞体。</param>
@@ -90,7 +74,7 @@ public class TransitionPoint : MonoBehaviour
             canTrans = false; // 设置可传送标记为 false
         }
     }
-    [System.Obsolete]
+
     private void PortalTransform(InputAction.CallbackContext context)
     {
         if (canTrans)
@@ -100,5 +84,4 @@ public class TransitionPoint : MonoBehaviour
             SceneController.Instance.TransitionToDestination(this);
         }
     }
-
 }

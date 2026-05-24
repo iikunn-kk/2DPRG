@@ -16,12 +16,9 @@ public class RunAudio : StateMachineBehaviour
         PlayerAudio playerAudio = animator.GetComponent<PlayerAudio>();
         if (playerAudio != null)
         {
-            string mapType = GetCurrentMapType(animator.gameObject);
             if (!playerAudio.audioSource2.isPlaying)
             {
-                playerAudio.PlayRunningSound(mapType);
-                // playerAudio.audioSource2.clip = playerAudio.running;
-                // playerAudio.audioSource2.Play();
+                playerAudio.PlayRunningSound();
             }
         }
     }
@@ -44,20 +41,4 @@ public class RunAudio : StateMachineBehaviour
     //{
     //    // Implement code that sets up animation IK (inverse kinematics)
     //}
-    // 使用射线自动检测地面是什么标签
-    private string GetCurrentMapType(GameObject player)
-    {
-        int layerMask = LayerMask.GetMask("Ground"); // 假设地面物体在 "Ground" 层级
-        RaycastHit2D hit = Physics2D.Raycast(player.transform.position, Vector2.down, Mathf.Infinity, layerMask);
-        if (hit.collider != null)
-        {
-            // Debug.Log("二维射线击中的物体是：" + hit.collider.tag);
-            return hit.collider.tag;
-        }
-        else
-        {
-            Debug.Log("二维射线检测未在“地面”层上击中任何二维碰撞体。");
-        }
-        return "";
-    }
 }
