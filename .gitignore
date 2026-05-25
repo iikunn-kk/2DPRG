@@ -10,7 +10,8 @@
 !.gitignore
 
 # --- 3. 白名单：项目文档 ---
-!project-overview.md
+# !project-overview.md
+!README.md
 
 # --- 4. 白名单：Unity 包依赖清单（没有它代码无法定位 API） ---
 !Packages/
