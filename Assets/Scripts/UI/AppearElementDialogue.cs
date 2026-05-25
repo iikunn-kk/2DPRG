@@ -1,24 +1,20 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>
+/// 元素对话 UI 显示控制
+/// 激活/显示元素对话面板
+/// </summary>
 public class AppearElementDialogue : MonoBehaviour
 {
-    public GameObject elementDialogue;
-    // Start is called before the first frame update
-    void Start()
-    {
+    [Header("对话UI")]
+    [SerializeField] private GameObject _elementDialogue;
 
-        // elementDialogue = Find("ElementDialogue");
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-
-    }
+    /// <summary>
+    /// 激活对话元素（供 UnityEvent / Animation Event 调用）
+    /// </summary>
     public void SetTrue()
     {
-        elementDialogue.SetActive(true);
+        if (_elementDialogue != null)
+            _elementDialogue.SetActive(true);
     }
 }

@@ -1,46 +1,59 @@
 using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using DG.Tweening;
+
+/// <summary>
+/// 画面淡入淡出控制器（使用 DOTween）
+/// 单例模式，场景切换时不销毁
+/// </summary>
 public class ScreenFader : MonoBehaviour
 {
-    //单例模式
-
     public static ScreenFader Instance { get; private set; }
-    public CanvasGroup faderCanvasGroup;
-    public float fadeDuration = 1f;//淡入淡出时长
+
+    [Header("淡入淡出设置")]
+    [SerializeField] private CanvasGroup _faderCanvasGroup;
+    [SerializeField] private float _fadeDuration = 1f;
 
     private void Awake()
     {
         if (Instance == null)
         {
             Instance = this;
+            DontDestroyOnLoad(gameObject);
         }
-        else if (Instance != null)
+        else
         {
             Destroy(gameObject);
         }
-        DontDestroyOnLoad(gameObject);//将当前游戏对象设置为不销毁
     }
 
-    //淡入场景
+    /// <summary>
+    /// 淡入场景（从黑到透明）
+    /// </summary>
     public IEnumerator FadeSceneIn()
     {
-        yield return StartCoroutine(Fade(0f, faderCanvasGroup));
-        //禁用淡入淡出的CanvasGroup对象
-        faderCanvasGroup.gameObject.SetActive(false);
-    }
-    //淡出场景
-    public IEnumerator FadeSceneOut()
-    {
-        //启用淡入淡出的CanvasGroup对象
-        faderCanvasGroup.gameObject.SetActive(true);
-        yield return StartCoroutine(Fade(1f, faderCanvasGroup));
+        if (_faderCanvasGroup == null) yield break;
+
+        yield return StartCoroutine(Fade(0f));
+        _faderCanvasGroup.gameObject.SetActive(false);
     }
 
-    //淡入淡出实现
-    public IEnumerator Fade(float finalAlpha, CanvasGroup canvasGroup)
+    /// <summary>
+    /// 淡出场景（从透明到黑）
+    /// </summary>
+    public IEnumerator FadeSceneOut()
     {
-        yield return canvasGroup.DOFade(finalAlpha, fadeDuration).WaitForCompletion();
+        if (_faderCanvasGroup == null) yield break;
+
+        _faderCanvasGroup.gameObject.SetActive(true);
+        yield return StartCoroutine(Fade(1f));
+    }
+
+    /// <summary>
+    /// 执行淡入淡出动画
+    /// </summary>
+    private IEnumerator Fade(float finalAlpha)
+    {
+        yield return _faderCanvasGroup.DOFade(finalAlpha, _fadeDuration).WaitForCompletion();
     }
 }

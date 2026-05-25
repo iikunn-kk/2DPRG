@@ -1,37 +1,52 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>
+/// 宝箱交互组件
+/// 实现 IInteractable 接口，支持开箱与掉落物生成
+/// </summary>
 public class Chest : MonoBehaviour, IInteractable
 {
-    private SpriteRenderer spriteRenderer;
+    [Header("宝箱外貌")]
     public Sprite openSprite;
     public Sprite closeSprite;
+
+    [Header("掉落物")]
+    public GameObject bloodBottle;
+
+    [Header("状态")]
     public bool isDone;
-    public GameObject bloodBottle;//掉落血瓶
+
+    [Header("掉落偏移")]
+    [SerializeField] private Vector3 _dropOffset = new Vector3(0, 3, 0);
+
+    private SpriteRenderer _spriteRenderer;
 
     private void Awake()
     {
-        spriteRenderer = GetComponent<SpriteRenderer>();
+        _spriteRenderer = GetComponent<SpriteRenderer>();
     }
+
     private void OnEnable()
     {
-        spriteRenderer.sprite = isDone ? openSprite : closeSprite;
+        if (_spriteRenderer != null)
+            _spriteRenderer.sprite = isDone ? openSprite : closeSprite;
     }
+
     public void TriggerAction()
     {
-        Debug.Log("Open Chest");
         if (!isDone)
-        {
             OpenChest();
-        }
     }
 
     private void OpenChest()
     {
-        spriteRenderer.sprite = openSprite;
+        if (_spriteRenderer != null)
+            _spriteRenderer.sprite = openSprite;
+
         isDone = true;
         gameObject.tag = "Untagged";
-        Instantiate(bloodBottle, transform.position + new Vector3(0, 3, 0), Quaternion.identity);
+
+        if (bloodBottle != null)
+            Instantiate(bloodBottle, transform.position + _dropOffset, Quaternion.identity);
     }
 }

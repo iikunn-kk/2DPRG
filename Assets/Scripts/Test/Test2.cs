@@ -1,29 +1,31 @@
 using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
+/// <summary>
+/// EventCenter 测试脚本（开发调试用）
+/// </summary>
 public class Test2 : MonoBehaviour
 {
     public Button button;
-    // Start is called before the first frame update
+
     void Start()
     {
         button = GetComponent<Button>();
         button.onClick.AddListener(() =>
         {
             Debug.Log("Click Button");
-            EventCenter.Instance.EventTrigger<int>("Hello EventCenter", 100);
-
-
-            EventCenter.Instance.EventTrigger("Hello EventCenter2");
+            
+            // 测试带参数事件触发
+            EventCenter.Instance.Trigger<int>("HelloEventCenter", 100);
+            
+            // 测试无参数事件触发
+            EventCenter.Instance.Trigger("HelloEventCenter2");
         });
     }
 
-
-    // Update is called once per frame
     void Update()
     {
-
+        // 预留扩展
     }
 }

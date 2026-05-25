@@ -1,24 +1,30 @@
-using System.Collections;
-using System.Collections.Generic;
 using Cinemachine;
 using UnityEngine;
 
+/// <summary>
+/// 相机控制 - 相机震动效果
+/// 监听 VoidEventSO 事件触发 Cinemachine Impulse
+/// </summary>
 public class CameraControl : MonoBehaviour
 {
-    public CinemachineImpulseSource impulseSource;
-    public VoidEventSO cameraShakeEvent;
+    [SerializeField] private CinemachineImpulseSource _impulseSource;
+    [SerializeField] private VoidEventSO _cameraShakeEvent;
 
-    void OnEnable()
+    private void OnEnable()
     {
-        cameraShakeEvent.OnEventRaised += OnCameraShakeEvent;
+        if (_cameraShakeEvent != null)
+            _cameraShakeEvent.OnEventRaised += OnCameraShakeEvent;
     }
-    void OnDisable()
+
+    private void OnDisable()
     {
-        cameraShakeEvent.OnEventRaised -= OnCameraShakeEvent;
+        if (_cameraShakeEvent != null)
+            _cameraShakeEvent.OnEventRaised -= OnCameraShakeEvent;
     }
+
     private void OnCameraShakeEvent()
     {
-        impulseSource.GenerateImpulse();
+        if (_impulseSource != null)
+            _impulseSource.GenerateImpulse();
     }
-
 }

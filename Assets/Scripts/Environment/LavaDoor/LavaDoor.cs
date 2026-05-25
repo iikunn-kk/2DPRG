@@ -1,35 +1,68 @@
-using System.Collections;
-using System.Collections.Generic;
-using Unity.VisualScripting;
 using UnityEngine;
 
+/// <summary>
+/// 熔岩门控制器
+/// 当玩家靠近时自动打开熔岩门
+/// </summary>
 public class LavaDoor : MonoBehaviour
 {
-    public AudioSource audioSource;
-    public Animator anim;
-    // Start is called before the first frame update
-    void Start()
+    [Header("组件引用")]
+    [SerializeField] private AudioSource audioSource; // 门开启音效
+    [SerializeField] private Animator anim;           // 门动画控制器
+
+    [Header("配置")]
+    [SerializeField] private AudioClip doorOpenClip;   // 门的打开音效（可选）
+
+    private void Awake()
     {
-        audioSource = GetComponent<AudioSource>();
-        anim = GetComponent<Animator>();
+        // 自动获取组件（如果未手动拖入）
+        if (audioSource == null)
+            audioSource = GetComponent<AudioSource>();
+        
+        if (anim == null)
+            anim = GetComponent<Animator>();
+
+        // 如果有独立音效资源，使用它
+        if (doorOpenClip != null && audioSource != null)
+        {
+            audioSource.clip = doorOpenClip;
+        }
     }
 
-    // Update is called once per frame
-    void Update()
+    /// <summary>
+    /// 播放熔岩门打开音效（可由动画事件调用）
+    /// </summary>
+    public void PlayLavaDoorOpenAudio()
     {
-
+        if (audioSource != null)
+        {
+            audioSource.Play();
+        }
     }
 
-    public void playLavaDoorOpenAudio()//播放熔岩门打开声音
-    {
-        audioSource.Play();
-    }
-
+    /// <summary>
+    /// 玩家触发碰撞 → 开启门
+    /// </summary>
     private void OnTriggerEnter2D(Collider2D collision)
     {
         if (collision.CompareTag("Player"))
         {
+            OpenDoor();
+        }
+    }
+
+    /// <summary>
+    /// 开启门的动画和音效
+    /// </summary>
+    private void OpenDoor()
+    {
+        if (anim != null)
+        {
             anim.Play("Open");
         }
+        
+        PlayLavaDoorOpenAudio();
+        
+        Debug.Log($"[LavaDoor] 熔岩门已开启: {gameObject.name}");
     }
 }

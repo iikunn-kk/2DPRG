@@ -1,41 +1,25 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>
+/// 玩家受伤音效触发器（Animator StateMachineBehaviour）
+/// 当进入受伤动画状态时自动播放受伤音效
+/// </summary>
 public class HurtAudio : StateMachineBehaviour
 {
-    // OnStateEnter is called when a transition starts and the state machine starts to evaluate this state
+    /// <summary>
+    /// 进入受伤状态时播放音效
+    /// </summary>
     override public void OnStateEnter(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
     {
         PlayerAudio playerAudio = animator.GetComponent<PlayerAudio>();
+        
         if (playerAudio != null)
         {
-            playerAudio.audioSource1.clip = playerAudio.hurt;
-            playerAudio.audioSource1.Play();
+            playerAudio.PlayHurtSound(); // 使用新的统一方法
+        }
+        else
+        {
+            Debug.LogWarning("[HurtAudio] 未找到 PlayerAudio 组件");
         }
     }
-
-    // OnStateUpdate is called on each Update frame between OnStateEnter and OnStateExit callbacks
-    //override public void OnStateUpdate(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
-    //{
-    //    
-    //}
-
-    // OnStateExit is called when a transition ends and the state machine finishes evaluating this state
-    //override public void OnStateExit(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
-    //{
-    //    
-    //}
-
-    // OnStateMove is called right after Animator.OnAnimatorMove()
-    //override public void OnStateMove(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
-    //{
-    //    // Implement code that processes and affects root motion
-    //}
-
-    // OnStateIK is called right after Animator.OnAnimatorIK()
-    //override public void OnStateIK(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
-    //{
-    //    // Implement code that sets up animation IK (inverse kinematics)
-    //}
 }

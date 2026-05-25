@@ -1,41 +1,26 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>
+/// 野猪受伤音效触发器（Animator StateMachineBehaviour）
+/// 当进入受伤动画状态时自动播放受伤音效
+/// </summary>
 public class BoarHurtAudio : StateMachineBehaviour
 {
-    // OnStateEnter is called when a transition starts and the state machine starts to evaluate this state
+    /// <summary>
+    /// 进入受伤状态时播放音效
+    /// </summary>
     override public void OnStateEnter(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
     {
-        BoarAudio boarAudio = animator.GetComponent<BoarAudio>();
-        if (boarAudio != null)
+        // 使用统一的 EnemiesAudio 组件（替代已删除的 BoarAudio）
+        EnemiesAudio enemiesAudio = animator.GetComponent<EnemiesAudio>();
+        
+        if (enemiesAudio != null)
         {
-            boarAudio.audioSource.clip = boarAudio.hurtAudio;
-            boarAudio.audioSource.Play();
+            enemiesAudio.PlayHurtSound();
+        }
+        else
+        {
+            Debug.LogWarning("[BoarHurtAudio] 未找到 EnemiesAudio 组件");
         }
     }
-
-    // OnStateUpdate is called on each Update frame between OnStateEnter and OnStateExit callbacks
-    //override public void OnStateUpdate(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
-    //{
-    //    
-    //}
-
-    // OnStateExit is called when a transition ends and the state machine finishes evaluating this state
-    //override public void OnStateExit(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
-    //{
-    //    
-    //}
-
-    // OnStateMove is called right after Animator.OnAnimatorMove()
-    //override public void OnStateMove(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
-    //{
-    //    // Implement code that processes and affects root motion
-    //}
-
-    // OnStateIK is called right after Animator.OnAnimatorIK()
-    //override public void OnStateIK(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
-    //{
-    //    // Implement code that sets up animation IK (inverse kinematics)
-    //}
 }

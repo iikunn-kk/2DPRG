@@ -1,9 +1,13 @@
-using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Text;
 using UnityEngine;
 using UnityEngine.UI;
 
+/// <summary>
+/// 背景故事文本显示控制
+/// 支持剧情介绍和致谢文本的分段显示
+/// </summary>
 public class Backstory : MonoBehaviour
 {
     [Header("UI组件")]
@@ -13,90 +17,110 @@ public class Backstory : MonoBehaviour
     [Header("文本文件")]
     public TextAsset BackstroryTextFile;
     public TextAsset ThanksTextFile;
-    public int index;
 
+    [Header("显示设置")]
+    [SerializeField] private float _textSpeed = 0.05f;
+    [SerializeField] private float _backStoryDisplayDuration = 25f;
+    [SerializeField] private float _thanksDisplayDuration = 13f;
+    [SerializeField] private float _fadeOutDelay = 1.01f;
+
+    [Header("面板")]
     public GameObject BackstoryPanel;
     public GameObject ThanksPanel;
-
     public Animator thanksPanelAnimator;
 
-    public float textSpeed;
-    List<string> textList = new List<string>();
-
+    private int _index;
+    private List<string> _textList = new List<string>();
 
     public void ShowBackstory()
     {
+        if (BackstroryTextFile == null)
+        {
+            Debug.LogWarning("[Backstory] 背景故事文本文件为空");
+            return;
+        }
         GetTextFromFile(BackstroryTextFile);
-        StartCoroutine(DeActiveBackStoryPanel());
         StartCoroutine(ShowBackstoryText());
+        StartCoroutine(DeActiveBackStoryPanel());
     }
 
     public void ShowThanksText()
     {
+        if (ThanksTextFile == null)
+        {
+            Debug.LogWarning("[Backstory] 致谢文本文件为空");
+            return;
+        }
         GetTextFromFile(ThanksTextFile);
-        StartCoroutine(ShowText());
+        StartCoroutine(ShowThanksTextCoroutine());
         StartCoroutine(DeActiveThanksPanel());
     }
 
-    void GetTextFromFile(TextAsset file)
+    private void GetTextFromFile(TextAsset file)
     {
-        textList.Clear();
-        index = 0;
+        _textList.Clear();
+        _index = 0;
 
-        var lineContent = file.text.Split("\n");//文本按行分割
-
+        var lineContent = file.text.Split('\n');
         foreach (var line in lineContent)
         {
-            textList.Add(line);
+            _textList.Add(line);
         }
-
     }
 
-    IEnumerator ShowBackstoryText()
+    private IEnumerator ShowBackstoryText()
     {
-        BackstroryText.text = "";
-        BackstoryPanel.SetActive(true);
-        //gameObject.SetActive(true);
-        for (int i = 0; i < textList[index].Length; i++)//每一行所有字符的总长度
+        if (BackstoryPanel != null)
+            BackstoryPanel.SetActive(true);
+
+        yield return ShowTextByCharacter(BackstroryText);
+    }
+
+    private IEnumerator ShowThanksTextCoroutine()
+    {
+        if (ThanksPanel != null)
+            ThanksPanel.SetActive(true);
+
+        yield return ShowTextByCharacter(ThanksText);
+    }
+
+    /// <summary>
+    /// 逐字显示文本（使用 StringBuilder 避免 GC 分配）
+    /// </summary>
+    private IEnumerator ShowTextByCharacter(Text textUI)
+    {
+        if (textUI == null || _textList.Count == 0) yield break;
+
+        var sb = new StringBuilder();
+        string currentLine = _textList[_index];
+
+        for (int i = 0; i < currentLine.Length; i++)
         {
-            BackstroryText.text += textList[index][i];//把当前行的每个字符一个一个加到（显示）文本上面
-            yield return new WaitForSeconds(textSpeed);
+            sb.Append(currentLine[i]);
+            textUI.text = sb.ToString();
+            yield return new WaitForSeconds(_textSpeed);
         }
-        index++;
+
+        _index++;
     }
 
-
-    IEnumerator ShowText()
+    private IEnumerator DeActiveBackStoryPanel()
     {
-        ThanksText.text = "";
-        ThanksPanel.SetActive(true);
-        //gameObject.SetActive(true);
-        for (int i = 0; i < textList[index].Length; i++)//每一行所有字符的总长度
-        {
-            ThanksText.text += textList[index][i];//把当前行的每个字符一个一个加到（显示）文本上面
-            yield return new WaitForSeconds(textSpeed);
-        }
-        index++;
+        yield return new WaitForSeconds(_backStoryDisplayDuration);
+        if (BackstoryPanel != null)
+            BackstoryPanel.SetActive(false);
     }
 
-
-    IEnumerator DeActiveBackStoryPanel()
+    private IEnumerator DeActiveThanksPanel()
     {
-        yield return new WaitForSeconds(25f);
-        BackstoryPanel.SetActive(false);
+        yield return new WaitForSeconds(_thanksDisplayDuration);
+
+        if (thanksPanelAnimator != null)
+            thanksPanelAnimator.SetTrigger("isFadeOut");
+
+        yield return new WaitForSeconds(_fadeOutDelay);
+
+        if (ThanksPanel != null)
+            ThanksPanel.SetActive(false);
     }
-
-    IEnumerator DeActiveThanksPanel()
-    {
-        yield return new WaitForSeconds(13f);
-        thanksPanelAnimator.SetTrigger("isFadeOut");
-        //ThanksPanel.SetActive(false);
-        Debug.Log("隐藏致谢文本");
-        yield return new WaitForSeconds(1.01f);
-        ThanksPanel.SetActive(false);
-    }
-
-
-
-
 }

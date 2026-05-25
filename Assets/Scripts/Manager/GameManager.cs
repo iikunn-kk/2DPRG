@@ -1,5 +1,3 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -28,7 +26,7 @@ public class GameManager : Singleton<GameManager>
     /// 注册玩家角色到游戏管理器
     /// </summary>
     /// <param name="player">需要注册的角色数据</param>
-    public void RigisterPlayer(CharacterStats player)
+    public void RegisterPlayer(CharacterStats player)
     {
         characterStats = player; // 更新当前角色引用
     }

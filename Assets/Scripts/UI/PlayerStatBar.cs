@@ -1,170 +1,174 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// 玩家状态条管理类，负责更新玩家的等级文本、经验条、生命值条等 UI 元素。
+/// 玩家状态条管理器
+/// 负责更新玩家的等级、经验值、生命值、能量值等 UI 元素
 /// </summary>
 public class PlayerStatBar : MonoBehaviour
 {
+    [Header("UI 组件引用")]
+    public Text levelText;              // 等级文本显示
+    public Image healthImage;           // 当前生命值条
+    public Image healthDelayImage;      // 延迟生命值条（红色血条）
+    public Image powerImage;            // 能量值条
+    public Image expImage;              // 经验值条
 
-    private Character currentCharacter;
-    /// <summary>
-    /// 显示玩家等级的文本组件
-    /// </summary>
-    public Text levelText;
-    /// <summary>
-    /// 显示当前生命值的图像组件
-    /// </summary>
-    public Image healthImage;
-    /// <summary>
-    /// 显示延迟生命值变化的图像组件（红色血条）
-    /// </summary>
-    public Image healthDelayImage;
-    /// <summary>
-    /// 显示能量值的图像组件
-    /// </summary>
-    public Image powerImage;
-    /// <summary>
-    /// 显示当前经验值的图像组件
-    /// </summary>
-    public Image expImage;
+    [Header("配置")]
+    [SerializeField] private float changeSpeed = 2f; // 血条变化速度
 
-    /// <summary>
-    /// 血条的变化速度
-    /// </summary>
-    public float changeSpeed;
+    // 运行时状态
+    private CharacterStats _characterStats;
+    private Character _currentCharacter;
+    private bool _isRecovering;
 
-    public bool isRecovering;
-
-    /// <summary>
-    /// 玩家角色的属性组件
-    /// </summary>
-    public CharacterStats characterStats;
-    // public GameObject player;
-
-    /// <summary>
-    /// 在脚本实例被加载时调用，目前方法体为空
-    /// </summary>
-    void Awake()
-    {
-        // player = GameManager.Instance.characterStats.gameObject;
-        // characterStats = player.GetComponent<CharacterStats>();
-        // Debug.Log(characterStats);
-    }
-
-    /// <summary>
-    /// 在第一次帧更新之前调用，初始化角色属性组件
-    /// </summary>
     void Start()
     {
-        characterStats = GameManager.Instance.characterStats;
+        InitializeReferences();
     }
 
     /// <summary>
-    /// 每帧调用一次，更新玩家状态 UI
+    /// 初始化组件引用
+    /// </summary>
+    private void InitializeReferences()
+    {
+        if (GameManager.Instance != null && GameManager.Instance.characterStats != null)
+        {
+            _characterStats = GameManager.Instance.characterStats;
+        }
+        else
+        {
+            Debug.LogWarning("[PlayerStatBar] GameManager 或 characterStats 未初始化");
+        }
+    }
+
+    /// <summary>
+    /// 每帧更新 UI 显示
     /// </summary>
     void Update()
     {
-
-        // 如果玩家属性为空，则不进行后续操作
-        if (GameManager.PlayerStats == null)
-            return;
-        // 获取玩家属性组件
-        characterStats = GameManager.PlayerStats;
-        // 更新UI
-        if (characterStats == null)
+        if (_characterStats == null)
         {
-            // 若未找到玩家属性组件，打印日志并返回
-            Debug.Log("找不到");
-            return;
+            InitializeReferences(); // 尝试重新初始化
+            if (_characterStats == null) return;
         }
 
-        // 更新等级文本
         UpdateLevelText();
-        // 更新经验条
         UpdateExp();
-        // 更新生命值条
         UpdateHealth();
-        //更新能量值条
         UpdatePower();
-        // 如果延迟生命值图像的填充量大于当前生命值图像的填充量
-        if (healthDelayImage.fillAmount > healthImage.fillAmount)
-        {
+        UpdateHealthDelay();
+    }
 
-            // 让红色血条根据一定的速度跟随着变化
-            healthDelayImage.fillAmount -= Time.deltaTime * changeSpeed;
+    #region UI 更新方法
+
+    /// <summary>
+    /// 更新等级文本显示
+    /// </summary>
+    private void UpdateLevelText()
+    {
+        if (levelText != null && _characterStats != null)
+        {
+            levelText.text = "Level  " + _characterStats.characterData.currentLevel.ToString("00");
+        }
+    }
+
+    /// <summary>
+    /// 更新经验值条填充量
+    /// </summary>
+    private void UpdateExp()
+    {
+        if (expImage == null || _characterStats?.characterData == null) return;
+
+        float sliderPercent = (float)_characterStats.characterData.currentExp / 
+                             (float)_characterStats.characterData.baseExp;
+        expImage.fillAmount = Mathf.Clamp01(sliderPercent);
+    }
+
+    /// <summary>
+    /// 更新生命值条填充量
+    /// </summary>
+    private void UpdateHealth()
+    {
+        if (healthImage == null || _characterStats?.characterData == null) return;
+
+        float maxHealth = _characterStats.characterData.maxHealth;
+        
+        // 防止除以零
+        if (maxHealth <= 0)
+        {
+            healthImage.fillAmount = 0;
+            return;
         }
 
-
+        float currentHealth = _characterStats.characterData.currentHealth;
+        float sliderPercent = currentHealth / maxHealth;
+        healthImage.fillAmount = Mathf.Clamp01(sliderPercent);
     }
 
     /// <summary>
-
-    /// 接收生命值的变更百分比并更新生命值图像的填充量
+    /// 更新能量值条填充量
     /// </summary>
+    private void UpdatePower()
+    {
+        if (powerImage == null || _currentCharacter == null) return;
 
-    /// <param name="persentage">生命值百分比：当前生命值 / 最大生命值</param>
-    public void OnHealthChange(float persentage)
-    {
-        // healthImage.fillAmount = persentage;
-    }
-    public void OnPowerChange(Character character)
-    {
-        isRecovering = true;
-        currentCharacter = character;
-    }
-    /// <summary>
-    /// 更新生命值条的填充量
-    /// </summary>
-    void UpdateHealth()
-    {
-        // 计算当前生命值占最大生命值的百分比
-        float sliderPercent = (float)GameManager.Instance.characterStats.characterData.currentHealth / (float)GameManager.Instance.characterStats.characterData.maxHealth;
-        // 更新生命值图像的填充量
-        healthImage.fillAmount = sliderPercent;
-        // Debug.Log(GameManager.Instance.characterStats.characterData.currentHealth);
-        // Debug.Log(GameManager.Instance.characterStats.characterData.maxHealth);
-
-
-        // Debug.Log(sliderPercent);
-    }
-
-    /// <summary>
-    /// 更新经验条的填充量
-    /// </summary>
-    void UpdateExp()
-    {
-        // 计算当前经验值占基础经验值的百分比
-        float sliderPercent = (float)GameManager.Instance.characterStats.characterData.currentExp / (float)GameManager.Instance.characterStats.characterData.baseExp;
-        // 更新经验条图像的填充量
-        expImage.fillAmount = sliderPercent;
-        // Debug.Log(GameManager.Instance.characterStats.characterData.currentExp);
-        // Debug.Log(GameManager.Instance.characterStats.characterData.baseExp);
-        // Debug.Log(sliderPercent);
-    }
-
-    /// <summary>
-    /// 更新显示玩家等级的文本
-    /// </summary>
-    void UpdateLevelText()
-    {
-        // 设置等级文本，格式为 "Level  " 加上两位数的当前等级
-        levelText.text = "Level  " + GameManager.Instance.characterStats.characterData.currentLevel.ToString("00");
-    }
-    void UpdatePower()
-    {
-        if (isRecovering)
+        if (_isRecovering)
         {
-            float persentage = currentCharacter.currentPower / currentCharacter.maxPower;
-            // Debug.Log(persentage);
-            powerImage.fillAmount = persentage;
-            if (persentage >= 1)
+            // 防止除以零
+            if (_currentCharacter.maxPower <= 0) return;
+
+            float percentage = _currentCharacter.currentPower / _currentCharacter.maxPower;
+            powerImage.fillAmount = Mathf.Clamp01(percentage);
+
+            if (percentage >= 1f)
             {
-                isRecovering = false;
-                return;
+                _isRecovering = false;
             }
         }
     }
+
+    /// <summary>
+    /// 更新延迟血条（红色血条）的平滑跟随效果
+    /// </summary>
+    private void UpdateHealthDelay()
+    {
+        if (healthDelayImage == null || healthImage == null) return;
+
+        if (healthDelayImage.fillAmount > healthImage.fillAmount)
+        {
+            healthDelayImage.fillAmount -= Time.deltaTime * changeSpeed;
+            
+            // 防止低于当前血条
+            if (healthDelayImage.fillAmount < healthImage.fillAmount)
+            {
+                healthDelayImage.fillAmount = healthImage.fillAmount;
+            }
+        }
+    }
+
+    #endregion
+
+    #region 事件回调
+
+    /// <summary>
+    /// 接收生命值变更事件（预留接口）
+    /// </summary>
+    /// <param name="percentage">生命值百分比</param>
+    public void OnHealthChange(float percentage)
+    {
+        // 当前由 Update() 直接驱动，此方法保留作为事件回调入口
+    }
+
+    /// <summary>
+    /// 接收能量变更事件
+    /// </summary>
+    /// <param name="character">触发事件的角色</param>
+    public void OnPowerChange(Character character)
+    {
+        _isRecovering = true;
+        _currentCharacter = character;
+    }
+
+    #endregion
 }

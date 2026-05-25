@@ -1,6 +1,5 @@
 using System;
 using System.Collections;
-using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.InputSystem;
@@ -105,9 +104,9 @@ public class PlayerController : Singleton<PlayerController>
                 StartCoroutine(WaitForCoyoteTime());
             }
         };
-        EventCenter.Instance.AddEventListener<bool>("isGround", _onGroundChanged);
+        EventCenter.Instance.AddEventListener<bool>(EventCenter.Events.IsGround, _onGroundChanged);
         inputControl.Enable();
-        GameManager.Instance.RigisterPlayer(characterStats);
+        GameManager.Instance.RegisterPlayer(characterStats);
         Debug.Log("注册成功");
     }
 
@@ -146,6 +145,7 @@ public class PlayerController : Singleton<PlayerController>
 
         CheckState();
         UpdateMovementState();
+        UpdateCrouchState();
     }
 
     private void FixedUpdate()
@@ -168,26 +168,24 @@ public class PlayerController : Singleton<PlayerController>
     /// </summary>
     public void SwitchTo(PlayerState newState)
     {
-        // Dead 是终态，不可被任何状态覆盖（除了重启）
         if (_state == PlayerState.Dead && newState != PlayerState.Dead)
             return;
 
-        // Hurt 可以被 Dead 打断、可以恢复（Idle/Fall/Run）、允许重新受击，
-        // 但禁止 Attack/Jump/Slide 在受伤期间激活
         if (_state == PlayerState.Hurt &&
             (newState == PlayerState.Attack ||
              newState == PlayerState.Jump ||
              newState == PlayerState.Slide))
             return;
 
-        ExitState(_state);
+        PlayerState oldState = _state;
+
+        ExitState(oldState, newState);
         _state = newState;
-        EnterState(_state);
+        EnterState(newState, oldState);
     }
 
-    private void EnterState(PlayerState state)
+    private void EnterState(PlayerState state, PlayerState fromState)
     {
-        // 关键：同步 bool 字段 → Animator 通过 PlayerAnimation.SetAnimation() 读取这些字段
         switch (state)
         {
             case PlayerState.Idle:
@@ -210,6 +208,7 @@ public class PlayerController : Singleton<PlayerController>
                 break;
             case PlayerState.Slide:
                 isSlide = true;
+                playerAudio?.PlaySlideSound();
                 break;
             case PlayerState.Hurt:
                 isHurt = true;
@@ -226,7 +225,7 @@ public class PlayerController : Singleton<PlayerController>
         }
     }
 
-    private void ExitState(PlayerState state)
+    private void ExitState(PlayerState state, PlayerState toState)
     {
         switch (state)
         {
@@ -249,6 +248,9 @@ public class PlayerController : Singleton<PlayerController>
             case PlayerState.Dialogue:
                 isDialogue = false;
                 break;
+            case PlayerState.Crouch:
+                isCrouch = false;
+                break;
         }
     }
 
@@ -260,10 +262,18 @@ public class PlayerController : Singleton<PlayerController>
     {
         rb.velocity = new Vector2(inputDirection.x * currentSpeed, rb.velocity.y);
         transform.localScale = new Vector3(tempX * faceDir, transform.localScale.y, transform.localScale.z);
+    }
 
-        // 下蹲
+    /// <summary>
+    /// 蹲下状态管理（每帧检测，保证即时响应）
+    /// </summary>
+    private void UpdateCrouchState()
+    {
+        if (_state == PlayerState.Dead || _state == PlayerState.Hurt) return;
+
         bool shouldCrouch = inputDirection.y < -0.5f && physicsCheck.isGround;
-        if (shouldCrouch && _state != PlayerState.Slide)
+
+        if (shouldCrouch && _state != PlayerState.Crouch && _state != PlayerState.Slide)
         {
             SwitchTo(PlayerState.Crouch);
             coll.offset = new Vector2(-0.18f, 0.8303528f);
@@ -271,9 +281,10 @@ public class PlayerController : Singleton<PlayerController>
         }
         else if (!shouldCrouch && _state == PlayerState.Crouch)
         {
-            SwitchTo(PlayerState.Run);
+            // S 松开：恢复站立，根据 A/D 状态决定 Run 还是 Idle
             coll.size = originalSize;
             coll.offset = originalOffset;
+            SwitchTo(Mathf.Abs(inputDirection.x) > 0.1f ? PlayerState.Run : PlayerState.Idle);
         }
     }
 
@@ -380,6 +391,10 @@ public class PlayerController : Singleton<PlayerController>
     private IEnumerator WaitForCoyoteTime()
     {
         yield return new WaitForSeconds(coyoteTime);
+
+        // 添加 null 检查，防止场景切换后 rb 已被销毁
+        if (rb == null) yield break;
+
         rb.gravityScale = 4;
     }
 
@@ -413,6 +428,25 @@ public class PlayerController : Singleton<PlayerController>
     {
         if (_state == PlayerState.Dead) return;
         SwitchTo(PlayerState.Dead);
+    }
+
+    /// <summary>
+    /// 强制停止一切动作，回到 Idle 状态。
+    /// 用于对话系统接管玩家控制前，先清除运动动量。
+    /// </summary>
+    public void ForceToIdle()
+    {
+        rb.velocity = Vector2.zero;
+
+        // 重置所有动作 bool（绕过 SwitchTo 避免触发 Jump 的 Enter 音效等）
+        isAttack = false;
+        isCrouch = false;
+        isHurt = false;
+        isJumping = false;
+        isSlide = false;
+        isDead = false;
+
+        _state = PlayerState.Idle;
     }
 
     public void OnDialogueStart()

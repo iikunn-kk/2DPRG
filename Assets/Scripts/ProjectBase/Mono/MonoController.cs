@@ -1,44 +1,29 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
 
-
 /// <summary>
-/// 作为Mono的管理者
-/// 1、生命周期函数
-/// 2、事件
-/// 3、协程
+/// MonoController - 全局 Update 事件分发器
+/// 挂载在不销毁的 GameObject 上，为其他模块提供帧更新回调
 /// </summary>
 public class MonoController : MonoBehaviour
 {
     public event UnityAction updateEvent;
-    // Start is called before the first frame update
-    void Start()
+
+    private void Start()
     {
-        DontDestroyOnLoad(this.gameObject);
+        DontDestroyOnLoad(gameObject);
     }
 
-    // Update is called once per frame
-    void Update()
+    private void Update()
     {
-        if(updateEvent!=null)
-        {
-            updateEvent();
-        }
+        updateEvent?.Invoke();
     }
-    /// <summary>
-    /// 给外部添加帧更新事件的函数
-    /// </summary>
-    /// <param name="fun"></param>
+
     public void AddUpdateListener(UnityAction fun)
     {
         updateEvent += fun;
     }
-    /// <summary>
-    /// 给外部移除帧更新事件的函数
-    /// </summary>
-    /// <param name="fun"></param>
+
     public void RemoveUpdateListener(UnityAction fun)
     {
         updateEvent -= fun;

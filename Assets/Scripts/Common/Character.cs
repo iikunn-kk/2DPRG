@@ -1,6 +1,3 @@
-using System.Collections;
-using System.Collections.Generic;
-using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.Events;
 
@@ -12,7 +9,10 @@ public class Character : MonoBehaviour
     public float maxPower;
     public float currentPower;
     public float powerRecoverSpeed;
-    public float damageOfTrap = 20f;
+
+    [Header("陷阱伤害设置")]
+    [SerializeField] private int trapDamage = 20; // 陷阱造成的伤害值
+
     [Header("受伤无敌")]
     public float invulnerableDuration;// 无敌状态持续时间
     private float invulnerableCounter;// 无敌状态剩余时间（运行时计数用）
@@ -32,7 +32,6 @@ public class Character : MonoBehaviour
     // 初始化基础数值
     public void Start()
     {
-
         if (characterStats != null)
         {
             maxHealth = characterStats.characterData.maxHealth;
@@ -46,13 +45,12 @@ public class Character : MonoBehaviour
             this.gameObject.SetActive(false);
         }
         OnHealthChange?.Invoke(this);
-
     }
 
     // 更新无敌状态计时
     private void Update()
     {
-        if (maxHealth != characterStats.MaxHealth)//如果升级了，那么就更新属性
+        if (characterStats != null && maxHealth != characterStats.MaxHealth)//如果升级了，那么就更新属性
         {
             LevelUpProperty();
         }
@@ -113,9 +111,16 @@ public class Character : MonoBehaviour
             currentHealth = 0;
             OnDie?.Invoke(); // 触发死亡事件
 
-            characterStats.CurrentHealth = 0;
+            if (characterStats != null)
+            {
+                characterStats.CurrentHealth = 0;
+            }
+
             //被攻击者击败后，提供经验值给攻击者
-            attacker.characterStats.characterData.UpdateExp(characterStats.characterData.killPoint);
+            if (attacker != null && attacker.characterStats != null && characterStats != null)
+            {
+                attacker.characterStats.characterData.UpdateExp(characterStats.characterData.killPoint);
+            }
         }
         OnHealthChange?.Invoke(this);
     }
@@ -179,25 +184,24 @@ public class Character : MonoBehaviour
 
         // currentHealth = 0;
         // characterStats.characterData.currentHealth = 0;
-        if (!invulnerable)
+                if (!invulnerable)
         {
-            if (characterStats.characterData.currentHealth - damageOfTrap > 0)
+            if (characterStats.characterData.currentHealth - trapDamage > 0)
             {
                 TriggerInvulnerable();//触发人物受伤时间间隔
-                characterStats.characterData.currentHealth -= 20;//陷阱扣20血
+                characterStats.characterData.currentHealth -= trapDamage;//陷阱扣血
                 currentHealth = characterStats.characterData.currentHealth;//同步人物当前血量和保存在数据中的血量保持一致
 
-                // if (PlayerController.Instance != null)
-                // {
-                //     PlayerController.Instance.isHurt = true;//设置人物受伤状态为true，可以防止静止人物的移动，在受伤动画播放后再自行设置isHurt为false然后自行恢复移动
-                // }
+                // 添加 null 检查，防止空引用崩溃
+                if (PlayerController.Instance != null)
+                {
+                    PlayerController.Instance.isHurt = true;//设置人物受伤状态为true，可以防止静止人物的移动，在受伤动画播放后再自行设置isHurt为false然后自行恢复移动
+                }
 
-                // if (PlayerAnimation.Instance != null)
-                // {
-                //     PlayerAnimation.Instance.PlayHurt();//播放人物受伤动画，同时在受伤动画状态里会自行播放受伤音效
-                // }
-                PlayerController.Instance.isHurt = true;//设置人物受伤状态为true，可以防止静止人物的移动，在受伤动画播放后再自行设置isHurt为false然后自行恢复移动
-                PlayerAnimation.Instance.PlayHurt();//播放人物受伤动画，同时在受伤动画状态里会自行播放受伤音效
+                if (PlayerAnimation.Instance != null)
+                {
+                    PlayerAnimation.Instance.PlayHurt();//播放人物受伤动画，同时在受伤动画状态里会自行播放受伤音效
+                }
             }
             else
             {

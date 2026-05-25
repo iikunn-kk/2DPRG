@@ -1,33 +1,52 @@
 using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Reflection;
 using UnityEngine;
 
+/// <summary>
+/// 普通类单例基类（非 MonoBehaviour）
+/// 用于不需要继承 MonoBehaviour 的管理器类（如 EventCenter）
+/// 
+/// 使用方式：public class MyManager : BaseManager&lt;MyManager&gt; { }
+/// </summary>
+/// <typeparam name="T">继承自 BaseManager 的类类型</typeparam>
 public class BaseManager<T> where T : class, new()
 {
-    private static T instance;
-    //属性的方式
+    private static T _instance;
+    private static readonly object _lock = new object();
+
+    /// <summary>
+    /// 获取单例实例
+    /// </summary>
     public static T Instance
     {
         get
         {
-            if (instance == null)
+            if (_instance == null)
             {
-                instance = new T();
+                lock (_lock)
+                {
+                    if (_instance == null)
+                    {
+                        _instance = new T();
+                    }
+                }
             }
-            return instance;
+            return _instance;
         }
     }
 
+    /// <summary>
+    /// 检查单例是否已初始化
+    /// </summary>
+    public static bool IsInitialized => _instance != null;
 
-    //方法的方式
-    public static T GetInstance()
+    /// <summary>
+    /// 重置单例（测试用或特殊场景切换时使用）
+    /// </summary>
+    protected static void ResetInstance()
     {
-        if (instance == null)
+        lock (_lock)
         {
-            instance = new T();
+            _instance = null;
         }
-        return instance;
     }
 }

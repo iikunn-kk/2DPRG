@@ -1,28 +1,35 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>
+/// 对话树管理器
+/// 负责对话系统中的玩家控制、动画播放和位置设置
+/// </summary>
 public class DialogueTreeManager : Singleton<DialogueTreeManager>
 {
+    [Header("玩家引用")]
     public GameObject player;
     public PlayerController playerController;
     public Animator anim;
-    public Rigidbody2D rb;// 刚体组件
+    public Rigidbody2D rb;
+
+    [Header("玩家状态")]
     public float maxHealth;
 
-    [Header("对话位置（在 Inspector 中配置）")]
+    [Header("对话位置配置")]
     public Vector3 upPosition;
     public Vector3 upToTopPosition;
     public Vector3 upToVolcanoPosition;
 
-    // public PlayerController player;
+    [Header("跳跃力度")]
+    [SerializeField] private float dialogueJumpForce = 25f;
+
     protected override void Awake()
     {
         base.Awake();
     }
-    void Update()
+
+    private void Update()
     {
-        // 只在 player 为 null 时查找并缓存引用，避免每帧重复查找
         if (player == null)
         {
             player = GameObject.FindGameObjectWithTag("Player");
@@ -35,61 +42,122 @@ public class DialogueTreeManager : Singleton<DialogueTreeManager>
             }
         }
     }
+
+    #region 对话控制
+
+    /// <summary>
+    /// 对话开始时：锁定玩家状态 + 停止移动
+    /// ⚠️ 方法名由 NodeCanvas 反射调用，不可修改！
+    /// </summary>
     public void OndialogueStopMove()
     {
-        Debug.Log("对话中，暂停移动");
-        playerController.isDialogue = true;
+        if (playerController != null)
+        {
+            // 1. 先强制切到 Idle（停止运动/动量）
+            playerController.ForceToIdle();
+
+            // 2. 再通过状态机进入 Dialogue（锁定 isDialogue = true）
+            playerController.OnDialogueStart();
+        }
+        else
+        {
+            Debug.LogWarning("[DialogueTreeManager] playerController 为空");
+        }
     }
+
+    /// <summary>
+    /// 对话结束时：恢复移动 + 解锁输入
+    /// ⚠️ 方法名由 NodeCanvas 反射调用，不可修改！
+    /// </summary>
     public void OndialogueRecoverMove()
     {
-        Debug.Log("对话结束，恢复移动");
-        playerController.isDialogue = false;
+        if (playerController != null)
+        {
+            // 通过状态机退出 Dialogue（解锁 isDialogue = false）
+            playerController.OnDialogueEnd();
+        }
+        else
+        {
+            Debug.LogWarning("[DialogueTreeManager] playerController 为空");
+        }
     }
+
+    #endregion
+
+    #region 动画播放
+
     public void PlayDialogueWithAttack1()
     {
-        anim.Play("Attack1");
+        if (anim != null) anim.Play("Attack1");
     }
+
     public void PlayDialogueWithAttack2()
     {
-        anim.Play("Attack2");
+        if (anim != null) anim.Play("Attack2");
     }
+
     public void PlayDialogueWithJump()
     {
-        anim.Play("Jump");
+        if (anim != null) anim.Play("Jump");
     }
+
     public void PlayDialogueWithHurt()
     {
-        anim.Play("Hurt");
+        if (anim != null) anim.Play("Hurt");
     }
+
     public void PlayDialogueWithLand()
     {
-        anim.Play("Land");
+        if (anim != null) anim.Play("Land");
     }
+
+    #endregion
+
+    #region 玩家控制
+
     public void MakePlayerJump()
     {
-        rb.AddForce(player.transform.up * 25, ForceMode2D.Impulse);
+        if (rb != null && player != null)
+            rb.AddForce(player.transform.up * dialogueJumpForce, ForceMode2D.Impulse);
+        else
+            Debug.LogWarning("[DialogueTreeManager] rb 或 player 为空");
     }
+
+    #endregion
+
+    #region 位置设置
 
     public void SetPlayerPositionUp()
     {
-        player.transform.position = upPosition;
+        if (player != null)
+            player.transform.position = upPosition;
     }
+
     public void SetPlayerPositionUpToTop()
     {
-        player.transform.position = upToTopPosition;
+        if (player != null)
+            player.transform.position = upToTopPosition;
     }
+
     public void SetPlayerPositionUpToVolcano()
     {
-        player.transform.position = upToVolcanoPosition;
+        if (player != null)
+            player.transform.position = upToVolcanoPosition;
     }
+
+    #endregion
+
+    #region 辅助方法
 
     public void CharacterCurrentMaxHealth()
     {
-        maxHealth = player.GetComponent<CharacterStats>().characterData.maxHealth;
+        if (player != null)
+        {
+            var characterStats = player.GetComponent<CharacterStats>();
+            if (characterStats != null)
+                maxHealth = characterStats.characterData.maxHealth;
+        }
     }
-    // public void TransitionToNextScene()
-    // {
-    //     StartCoroutine(SceneController.Instance.Transition("Mounts", TransitionDestination.DestinationTag.A));
-    // }
-}
 
+    #endregion
+}

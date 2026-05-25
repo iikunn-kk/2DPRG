@@ -1,18 +1,24 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>
+/// 对话动画控制
+/// 通过 Animator 播放对话攻击动画
+/// </summary>
 public class DialogueAnimation : MonoBehaviour
 {
-    private Animator anim;
+    private Animator _animator;
 
-    void Awake()
+    private void Awake()
     {
-        anim = GetComponent<Animator>();
+        _animator = GetComponent<Animator>();
     }
 
+    /// <summary>
+    /// 播放对话时的攻击动画
+    /// </summary>
     public void PlayDialogueWithAttack2()
     {
-        anim.Play("Attack2");
+        if (_animator != null)
+            _animator.Play("Attack2");
     }
 }

@@ -1,43 +1,52 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
+
+/// <summary>
+/// 角色数据 ScriptableObject
+/// 管理角色所有基础属性与升级逻辑
+/// </summary>
 [CreateAssetMenu(fileName = "New Data", menuName = "Character Stats/Data")]
 public class CharacterData_SO : ScriptableObject
 {
     [Header("血量属性")]
     public int maxHealth;
     public int currentHealth;
+
     [Header("攻击属性")]
     public float minDamage;
     public float maxDamage;
-    public float criticalMultiplier;//暴击增幅百分比
-    public float criticalChance;//暴击率
+    public float criticalMultiplier;
+    public float criticalChance;
+
     [Header("滑铲能量条")]
-    public float maxPower;//最大能量
-    public float currentPower;//当前能量
+    public float maxPower;
+    public float currentPower;
+
     [Header("击杀后掉落的经验值")]
-    public int killPoint;//击杀经验
+    public int killPoint;
 
     [Header("等级属性")]
-    public int currentLevel;//当前等级
-    public int maxLevel;//最大等级
-    public int baseExp;//升级要求的经验值
-    public int currentExp;//当前已获得的总经验值
-    public float levelBuff;//升一级属性提升的百分比
+    public int currentLevel = 1;
+    public int maxLevel = 10;
+    public int baseExp;
+    public int currentExp;
 
-    public float LevelMultiplier
-    {
-        get { return 1 + (currentLevel - 1) * levelBuff; }
-    }
+    [Tooltip("升一级属性提升的百分比 (如 0.1 = 10%)")]
+    [SerializeField] private float _levelBuff = 0.1f;
+
+    [Header("升级增量")]
+    [SerializeField] private float _powerPerLevel = 2.5f;
+
+    public float LevelMultiplier => 1 + (currentLevel - 1) * _levelBuff;
+
     public void UpdateExp(int point)
     {
         currentExp += point;
         if (currentExp >= baseExp)
-            LeveUp();
+            LevelUp();
     }
-    private void LeveUp()//升级属性加成
+
+    private void LevelUp()
     {
-        //所有你想提升数据的方法
         currentLevel = Mathf.Clamp(currentLevel + 1, 0, maxLevel);
         baseExp += (int)(baseExp * LevelMultiplier);
 
@@ -45,8 +54,7 @@ public class CharacterData_SO : ScriptableObject
         currentHealth = maxHealth;
         minDamage += 1;
         maxDamage += 1;
-        maxPower += 2.5f;
+        maxPower += _powerPerLevel;
         currentPower = maxPower;
-        Debug.Log("LEVEL UP!" + currentHealth + "Max Health:" + maxHealth);
     }
 }

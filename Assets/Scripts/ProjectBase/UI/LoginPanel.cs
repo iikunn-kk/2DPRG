@@ -1,21 +1,10 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
+/// <summary>
+/// 登录面板（预留组件，用于开始界面按钮绑定）
+/// </summary>
 public class LoginPanel : MonoBehaviour
 {
-    public Button btnStart;
-
-    // Start is called before the first frame update
-    void Start()
-    {
-        
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-        
-    }
+    [SerializeField] private Button _btnStart;
 }

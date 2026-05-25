@@ -1,52 +1,68 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>
+/// 属性增强组件 - 供 UnityEvent / 升级系统调用
+/// 直接修改 GameManager 中的角色属性
+/// </summary>
 public class PropertiesEnhance : MonoBehaviour
 {
+    private const int HealthDelta = 10;
+    private const int PowerDelta = 10;
+    private const int DamageDelta = 1;
+
+    private CharacterStats Stats => GameManager.Instance?.characterStats;
+    private CharacterData_SO Data => Stats?.characterData;
+
     public void HpAdd10()
     {
-        GameManager.Instance.characterStats.characterData.maxHealth += 10;
-        GameManager.Instance.characterStats.characterData.currentHealth = GameManager.Instance.characterStats.characterData.maxHealth;
-        Debug.Log("最大血量增加10");
+        if (Data == null) return;
+        Data.maxHealth += HealthDelta;
+        Data.currentHealth = Data.maxHealth;
     }
-    public void PpAdd10()//能量条增加10
 
+    public void PpAdd10()
     {
-        GameManager.Instance.characterStats.characterData.maxPower += 10;
-        GameManager.Instance.characterStats.characterData.currentPower = GameManager.Instance.characterStats.characterData.maxPower;
-        Debug.Log("最大能量增加10");
+        if (Data == null) return;
+        Data.maxPower += PowerDelta;
+        Data.currentPower = Data.maxPower;
     }
+
     public void HpPpDamage()
     {
-        GameManager.Instance.characterStats.characterData.maxHealth += 10;
-        GameManager.Instance.characterStats.characterData.currentHealth = GameManager.Instance.characterStats.characterData.maxHealth;
-
-        GameManager.Instance.characterStats.characterData.maxPower += 10;
-        GameManager.Instance.characterStats.characterData.currentPower = GameManager.Instance.characterStats.characterData.maxPower;
-
-        GameManager.Instance.characterStats.characterData.minDamage += 1;
-        GameManager.Instance.characterStats.characterData.maxDamage += 1;
+        if (Data == null) return;
+        Data.maxHealth += HealthDelta;
+        Data.currentHealth = Data.maxHealth;
+        Data.maxPower += PowerDelta;
+        Data.currentPower = Data.maxPower;
+        Data.minDamage += DamageDelta;
+        Data.maxDamage += DamageDelta;
     }
+
     public void DamageAdd1()
     {
-        GameManager.Instance.characterStats.characterData.minDamage += 1;
-        GameManager.Instance.characterStats.characterData.maxDamage += 1;
+        if (Data == null) return;
+        Data.minDamage += DamageDelta;
+        Data.maxDamage += DamageDelta;
     }
+
     public void HpReduce10()
     {
-        GameManager.Instance.characterStats.characterData.maxHealth -= 10;
-        GameManager.Instance.characterStats.characterData.currentHealth = GameManager.Instance.characterStats.characterData.maxHealth;
+        if (Data == null) return;
+        Data.maxHealth -= HealthDelta;
+        Data.currentHealth = Data.maxHealth;
     }
-    public void PpReduce10()//能量条增加10
 
+    public void PpReduce10()
     {
-        GameManager.Instance.characterStats.characterData.maxPower -= 10;
-        GameManager.Instance.characterStats.characterData.currentPower = GameManager.Instance.characterStats.characterData.maxPower;
+        if (Data == null) return;
+        Data.maxPower -= PowerDelta;
+        Data.currentPower = Data.maxPower;
     }
+
     public void DamageReduce1()
     {
-        GameManager.Instance.characterStats.characterData.minDamage -= 1;
-        GameManager.Instance.characterStats.characterData.maxDamage -= 1;
+        if (Data == null) return;
+        Data.minDamage -= DamageDelta;
+        Data.maxDamage -= DamageDelta;
     }
 }

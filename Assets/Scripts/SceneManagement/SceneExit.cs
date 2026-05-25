@@ -1,27 +1,30 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
+
 /// <summary>
-/// 场景退出
-/// </summary> <summary>
-/// 
+/// 场景退出触发器
+/// 当玩家进入触发区域时，自动过渡到目标场景
 /// </summary>
 public class SceneExit : MonoBehaviour
 {
-    [Tooltip("需要过渡新场景的名称")]
-    public string newSceneName;
-    //当玩家进入触发器
+    [Tooltip("目标场景名称")]
+    [SerializeField] private string _newSceneName;
+
     private void OnTriggerEnter2D(Collider2D other)
     {
-        if (other.CompareTag("Player"))
+        if (!other.CompareTag("Player")) return;
+
+        if (string.IsNullOrEmpty(_newSceneName))
         {
-            Debug.Log("玩家进入传送区域");
-            TransitionInternal();
+            Debug.LogWarning("[SceneExit] 目标场景名称为空");
+            return;
         }
-    }
-    //调用场景切换函数
-    public void TransitionInternal()
-    {
-        SceneLoader.Instance.TransitionToScene(newSceneName);
+
+        if (SceneLoader.Instance == null)
+        {
+            Debug.LogError("[SceneExit] SceneLoader 实例不存在");
+            return;
+        }
+
+        SceneLoader.Instance.TransitionToScene(_newSceneName);
     }
 }

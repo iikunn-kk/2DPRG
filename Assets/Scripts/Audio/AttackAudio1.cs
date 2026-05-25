@@ -1,46 +1,36 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>
+/// 攻击音效的 Animator StateMachineBehaviour
+/// OnStateEnter: 播放攻击音效
+/// OnStateUpdate: 标记攻击状态
+/// OnStateExit: 停止攻击音效
+/// </summary>
 public class AttackAudio1 : StateMachineBehaviour
 {
-    // OnStateEnter is called when a transition starts and the state machine starts to evaluate this state
+    private PlayerAudio _cachedPlayerAudio;
+
     override public void OnStateEnter(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
     {
-        PlayerAudio playerAudio = animator.GetComponent<PlayerAudio>();
-        if (playerAudio != null)
+        if (_cachedPlayerAudio == null)
+            _cachedPlayerAudio = animator.GetComponent<PlayerAudio>();
+
+        if (_cachedPlayerAudio?.audioSource1 != null)
         {
-            playerAudio.audioSource1.clip = playerAudio.attacking;
-            playerAudio.audioSource1.Play();
+            _cachedPlayerAudio.audioSource1.clip = _cachedPlayerAudio.attacking;
+            _cachedPlayerAudio.audioSource1.Play();
         }
     }
 
-    // OnStateUpdate is called on each Update frame between OnStateEnter and OnStateExit callbacks
     override public void OnStateUpdate(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
     {
-        animator.GetComponent<PlayerAudio>().attackAudio = true;
+        if (_cachedPlayerAudio != null)
+            _cachedPlayerAudio.attackAudio = true;
     }
 
-    // OnStateExit is called when a transition ends and the state machine finishes evaluating this state
     override public void OnStateExit(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
     {
-        PlayerAudio playerAudio = animator.GetComponent<PlayerAudio>();
-        if (playerAudio != null && playerAudio.audioSource1.isPlaying)
-        {
-            playerAudio.audioSource1.Stop();
-        }
+        if (_cachedPlayerAudio?.audioSource1 != null && _cachedPlayerAudio.audioSource1.isPlaying)
+            _cachedPlayerAudio.audioSource1.Stop();
     }
-
-    // OnStateMove is called right after Animator.OnAnimatorMove()
-    //override public void OnStateMove(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
-    //{
-    //    // Implement code that processes and affects root motion
-    //}
-
-    // OnStateIK is called right after Animator.OnAnimatorIK()
-    //override public void OnStateIK(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
-    //{
-    //    // Implement code that sets up animation IK (inverse kinematics)
-    //}
 }
-

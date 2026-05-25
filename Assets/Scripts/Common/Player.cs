@@ -1,10 +1,11 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>
+/// 玩家单例组件（跨场景持久化）
+/// 注意：这是一个轻量级定位器，主要逻辑在 PlayerController 中
+/// </summary>
 public class Player : MonoBehaviour
 {
-
     public static Player Instance { get; private set; }
 
     private void Awake()
@@ -12,11 +13,11 @@ public class Player : MonoBehaviour
         if (Instance == null)
         {
             Instance = this;
+            DontDestroyOnLoad(gameObject);
         }
-        else if (Instance != null)
+        else
         {
             Destroy(gameObject);
         }
-        DontDestroyOnLoad(gameObject);//加载新场景时告诉游戏引擎，不要销毁该对象
     }
 }

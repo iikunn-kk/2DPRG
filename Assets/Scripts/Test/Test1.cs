@@ -1,42 +1,29 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>
+/// EventCenter 测试脚本（开发调试用）
+/// </summary>
 public class Test1 : MonoBehaviour
 {
-
-    // Start is called before the first frame update
-    void Start()
+    private void OnEnable()
     {
-
-    }
-    void OnEnable()
-    {
-        EventCenter.Instance.AddEventListener<int>("Hello EventCenter", (eventcenter) =>
-        {
-            Debug.Log("Hello EventCenter" + eventcenter);
-        });
-
-
-        EventCenter.Instance.AddEventListener("Hello EventCenter2", PrintHelloEventer);
+        EventCenter.Instance.AddEventListener<int>("HelloEventCenter", OnHelloWithValue);
+        EventCenter.Instance.AddEventListener("HelloEventCenter2", OnHelloNoValue);
     }
 
-    public void PrintHelloEventer()
+    private void OnDisable()
     {
-        Debug.Log("HelloWordl EventCenterqweqweqw");
+        EventCenter.Instance.RemoveEventListener<int>("HelloEventCenter", OnHelloWithValue);
+        EventCenter.Instance.RemoveEventListener("HelloEventCenter2", OnHelloNoValue);
     }
-    void OnDisable()
-    {
-        EventCenter.Instance.RemoveEventListener<int>("Hello EventCenter", (eventcenter) =>
-        {
-            Debug.Log("Hello EventCenter" + eventcenter);
-        });
 
-        EventCenter.Instance.RemoveEventListener("Hello EventCenter2", PrintHelloEventer);
+    private void OnHelloWithValue(int value)
+    {
+        Debug.Log($"HelloEventCenter {value}");
     }
-    // Update is called once per frame
-    void Update()
-    {
 
+    private void OnHelloNoValue()
+    {
+        Debug.Log("HelloEventCenter2 triggered");
     }
 }

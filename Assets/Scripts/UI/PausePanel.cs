@@ -1,7 +1,9 @@
 using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>
+/// 暂停面板管理器
+/// </summary>
 public class PausePanel : Singleton<PausePanel>
 {
     public GameObject pausePanel;//游戏暂停面板
@@ -16,10 +18,23 @@ public class PausePanel : Singleton<PausePanel>
         // pausePanel = GameObject.Find("PausePanel");
         // pausePanel = FindFirstObjectByType<PausePanel>().gameObject;
         bgm = GameObject.Find("BGM");
+
+        if (bgm == null)
+        {
+            Debug.LogWarning("[PausePanel] 未找到 BGM 对象");
+        }
     }
     private void Start()
     {
-        bgmSource = bgm.GetComponent<AudioSource>();
+        if (bgm != null)
+        {
+            bgmSource = bgm.GetComponent<AudioSource>();
+        }
+
+        if (bgmSource == null)
+        {
+            Debug.LogWarning("[PausePanel] 未找到 BGM AudioSource");
+        }
     }
     private void Update()
     {
@@ -30,29 +45,72 @@ public class PausePanel : Singleton<PausePanel>
     }
     public void PauseGame()
     {
-        pausePanel.SetActive(true);
+        if (pausePanel != null)
+        {
+            pausePanel.SetActive(true);
+        }
+
         Time.timeScale = 0;
-        bgmSource.Pause();//暂停场景的BGM音乐
-        playerAudio.audioSource2.mute = true;//将人物走动声静音
+
+        if (bgmSource != null)
+        {
+            bgmSource.Pause();//暂停场景的BGM音乐
+        }
+
+        if (playerAudio != null && playerAudio.audioSource2 != null)
+        {
+            playerAudio.audioSource2.mute = true;//将人物走动声静音
+        }
     }
     public void ContinueGame()
     {
-        pausePanel.SetActive(false);
+        if (pausePanel != null)
+        {
+            pausePanel.SetActive(false);
+        }
+
         Time.timeScale = 1;
-        bgmSource.Play();//播放场景的BGM音乐
-        playerAudio.audioSource2.mute = false;//关闭人物走动声静音
+
+        if (bgmSource != null)
+        {
+            bgmSource.Play();//播放场景的BGM音乐
+        }
+
+        if (playerAudio != null && playerAudio.audioSource2 != null)
+        {
+            playerAudio.audioSource2.mute = false;//关闭人物走动声静音
+        }
     }
     public void RestartGame()
     {
-        pausePanel.SetActive(false);
+        if (pausePanel != null)
+        {
+            pausePanel.SetActive(false);
+        }
+
         Time.timeScale = 1;
-        bgmSource.Play();//播放场景的BGM音乐
-        playerAudio.audioSource2.mute = false;//关闭人物走动声静音
-        SceneController.Instance.RestartGameScene();
+
+        if (bgmSource != null)
+        {
+            bgmSource.Play();//播放场景的BGM音乐
+        }
+
+        if (playerAudio != null && playerAudio.audioSource2 != null)
+        {
+            playerAudio.audioSource2.mute = false;//关闭人物走动声静音
+        }
+
+        if (SceneController.Instance != null)
+        {
+            SceneController.Instance.RestartGameScene();
+        }
     }
     public void QuitGame()
     {
-        SceneController.Instance.TransitionToMain();//返回主场景
+        if (SceneController.Instance != null)
+        {
+            SceneController.Instance.TransitionToMain();//返回主场景
+        }
         Time.timeScale = 1;
     }
     public void DeadToRestartGame()

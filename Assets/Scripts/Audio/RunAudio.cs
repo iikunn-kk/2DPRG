@@ -1,44 +1,31 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>
+/// 跑步音效的 Animator StateMachineBehaviour
+/// OnStateUpdate: 持续播放跑步音效
+/// OnStateExit: 停止跑步音效
+/// </summary>
 public class RunAudio : StateMachineBehaviour
 {
-    // OnStateEnter is called when a transition starts and the state machine starts to evaluate this state
-    //override public void OnStateEnter(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
-    //{
-    //    
-    //}
+    private PlayerAudio _cachedPlayerAudio;
 
-    // OnStateUpdate is called on each Update frame between OnStateEnter and OnStateExit callbacks
     override public void OnStateUpdate(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
     {
-        PlayerAudio playerAudio = animator.GetComponent<PlayerAudio>();
-        if (playerAudio != null)
+        if (_cachedPlayerAudio == null)
+            _cachedPlayerAudio = animator.GetComponent<PlayerAudio>();
+
+        if (_cachedPlayerAudio?.audioSource2 != null && !_cachedPlayerAudio.audioSource2.isPlaying)
         {
-            if (!playerAudio.audioSource2.isPlaying)
-            {
-                playerAudio.PlayRunningSound();
-            }
+            _cachedPlayerAudio.PlayRunningSound();
         }
     }
 
-    // OnStateExit is called when a transition ends and the state machine finishes evaluating this state
     override public void OnStateExit(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
     {
-        PlayerAudio playerAudio = animator.GetComponent<PlayerAudio>();
-        playerAudio.audioSource2.Stop();
+        if (_cachedPlayerAudio == null)
+            _cachedPlayerAudio = animator.GetComponent<PlayerAudio>();
+
+        if (_cachedPlayerAudio?.audioSource2 != null)
+            _cachedPlayerAudio.audioSource2.Stop();
     }
-
-    // OnStateMove is called right after Animator.OnAnimatorMove()
-    //override public void OnStateMove(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
-    //{
-    //    // Implement code that processes and affects root motion
-    //}
-
-    // OnStateIK is called right after Animator.OnAnimatorIK()
-    //override public void OnStateIK(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
-    //{
-    //    // Implement code that sets up animation IK (inverse kinematics)
-    //}
 }

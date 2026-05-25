@@ -1,8 +1,6 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
-public class SceneEntrance : MonoBehaviour
-{
-
-}
+/// <summary>
+/// 场景入口标记（挂载在场景中的传送目标点）
+/// </summary>
+public class SceneEntrance : MonoBehaviour { }

@@ -1,26 +1,23 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using Cinemachine;
+
+/// <summary>
+/// 玩家绑定相机组件
+/// 在 Start 时将 Cinemachine 虚拟相机绑定到玩家
+/// </summary>
 public class PlayerBoundCamera : MonoBehaviour
 {
-    [System.Obsolete]
-    void Start()
+    private void Start()
     {
-        // 绑定相机
-        // var cinemachine = GetComponent<CinemachineVirtualCamera>();
         var cinemachine = FindObjectOfType<CinemachineVirtualCamera>();
         if (cinemachine != null)
         {
-            // cinemachine.Follow = GameManager.Instance.characterStats.transform;
-            // cinemachine.LookAt = GameManager.Instance.characterStats.transform;
-            cinemachine.Follow = this.transform;
-            cinemachine.LookAt = this.transform;
-            Debug.Log("虚拟相机定位成功");
+            cinemachine.Follow = transform;
+            cinemachine.LookAt = transform;
         }
         else
         {
-            Debug.Log("虚拟相机定位失败");
+            Debug.LogWarning("[PlayerBoundCamera] 场景中未找到 CinemachineVirtualCamera");
         }
     }
 }

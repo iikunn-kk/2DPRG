@@ -1,39 +1,20 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>
+/// 攻击2碰撞体偏移控制 (StateMachineBehaviour)
+/// OnStateUpdate: 持续调整碰撞体位置实现攻击范围偏移
+/// </summary>
 public class Attack2ChangeCollider : StateMachineBehaviour
 {
-    // OnStateEnter is called when a transition starts and the state machine starts to evaluate this state
-    override public void OnStateEnter(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
-    {
-        // CapsuleCollider2D capsuleCollider2D = animator.GetComponent<CapsuleCollider2D>();
-        // capsuleCollider2D.offset = new Vector2(-0.5f, capsuleCollider2D.offset.y);
-    }
+    private CapsuleCollider2D _cachedCollider;
+    private const float OffsetX = -0.5f;
 
-    // OnStateUpdate is called on each Update frame between OnStateEnter and OnStateExit callbacks
     override public void OnStateUpdate(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
     {
-        CapsuleCollider2D capsuleCollider2D = animator.GetComponent<CapsuleCollider2D>();
-        capsuleCollider2D.offset = new Vector2(-0.5f, capsuleCollider2D.offset.y);
+        if (_cachedCollider == null)
+            _cachedCollider = animator.GetComponent<CapsuleCollider2D>();
+
+        if (_cachedCollider != null)
+            _cachedCollider.offset = new Vector2(OffsetX, _cachedCollider.offset.y);
     }
-
-    // OnStateExit is called when a transition ends and the state machine finishes evaluating this state
-    override public void OnStateExit(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
-    {
-        // CapsuleCollider2D capsuleCollider2D = animator.GetComponent<CapsuleCollider2D>();
-        // capsuleCollider2D.offset = new Vector2(0f, capsuleCollider2D.offset.y);
-    }
-
-    // OnStateMove is called right after Animator.OnAnimatorMove()
-    //override public void OnStateMove(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
-    //{
-    //    // Implement code that processes and affects root motion
-    //}
-
-    // OnStateIK is called right after Animator.OnAnimatorIK()
-    //override public void OnStateIK(Animator animator, AnimatorStateInfo stateInfo, int layerIndex)
-    //{
-    //    // Implement code that sets up animation IK (inverse kinematics)
-    //}
 }
