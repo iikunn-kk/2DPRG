@@ -27,7 +27,8 @@ public class MusicMgr : BaseManager<MusicMgr>
         {
             if (!_soundList[i].isPlaying)
             {
-                Object.Destroy(_soundList[i]);
+                // 归还到对象池（不再 Destroy，避免 GC）
+                AudioSourceFactory.Return(_soundList[i]);
                 _soundList.RemoveAt(i);
             }
         }
@@ -38,18 +39,18 @@ public class MusicMgr : BaseManager<MusicMgr>
     /// </summary>
     public void PlayBkMusic(string name)
     {
-        if (_bkMusic == null)
-        {
-            var obj = new GameObject("BkMusic");
-            _bkMusic = obj.AddComponent<AudioSource>();
-        }
-
         ResMgr.Instance.LoadAsync<AudioClip>("Music/BK/" + name, (clip) =>
         {
-            _bkMusic.clip = clip;
-            _bkMusic.loop = true;
-            _bkMusic.volume = _bkVolume;
-            _bkMusic.Play();
+            if (_bkMusic == null)
+            {
+                // 工厂一行搞定：new GameObject + AddComponent + 配置
+                _bkMusic = AudioSourceFactory.Create(null, "BkMusic", clip, true, _bkVolume);
+            }
+            else
+            {
+                _bkMusic.clip = clip;
+                _bkMusic.Play();
+            }
         });
     }
 
@@ -81,17 +82,12 @@ public class MusicMgr : BaseManager<MusicMgr>
     public void PlaySound(string name, bool isLoop, UnityAction<AudioSource> callback = null)
     {
         if (_soundObj == null)
-        {
             _soundObj = new GameObject("Sound");
-        }
 
         ResMgr.Instance.LoadAsync<AudioClip>("Music/Sound/" + name, (clip) =>
         {
-            var source = _soundObj.AddComponent<AudioSource>();
-            source.clip = clip;
-            source.loop = isLoop;
-            source.volume = _soundVolume;
-            source.Play();
+            // 工厂创建：挂载到 _soundObj 下，自动配置并播放
+            var source = AudioSourceFactory.Create(_soundObj, name, clip, isLoop, _soundVolume);
             _soundList.Add(source);
             callback?.Invoke(source);
         });
@@ -111,8 +107,7 @@ public class MusicMgr : BaseManager<MusicMgr>
         if (_soundList.Contains(source))
         {
             _soundList.Remove(source);
-            source.Stop();
-            Object.Destroy(source);
+            AudioSourceFactory.Return(source); // 归还池
         }
     }
 }

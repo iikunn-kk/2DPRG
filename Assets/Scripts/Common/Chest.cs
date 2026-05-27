@@ -10,9 +10,6 @@ public class Chest : MonoBehaviour, IInteractable
     public Sprite openSprite;
     public Sprite closeSprite;
 
-    [Header("掉落物")]
-    public GameObject bloodBottle;
-
     [Header("状态")]
     public bool isDone;
 
@@ -46,7 +43,7 @@ public class Chest : MonoBehaviour, IInteractable
         isDone = true;
         gameObject.tag = "Untagged";
 
-        if (bloodBottle != null)
-            Instantiate(bloodBottle, transform.position + _dropOffset, Quaternion.identity);
+        // 通过工厂创建血瓶（不再直接 Instantiate）
+        ItemFactory.Instance.CreateHealthBottle(transform.position + _dropOffset);
     }
 }
