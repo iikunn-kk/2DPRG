@@ -1,82 +1,108 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
+/// <summary>
+/// 角色属性面板 — 将 GameManager 中的角色数据实时显示到 Text 组件
+/// </summary>
 public class PlayerProperties : MonoBehaviour
 {
+    [Header("Text 组件")]
+    [SerializeField] private Text _levelText;
+    [SerializeField] private Text _maxHpText;
+    [SerializeField] private Text _currentHpText;
+    [SerializeField] private Text _maxPowerText;
+    [SerializeField] private Text _currentPowerText;
+    [SerializeField] private Text _maxDamageText;
+    [SerializeField] private Text _minDamageText;
+    [SerializeField] private Text _criticalMultiplierText;
+    [SerializeField] private Text _criticalChanceText;
 
-    public Character character;
-    public Text levelText;
-    public Text maxHpText;
-    public Text currentHpText;
-    public Text maxPowerText;
-    public Text currentPowerText;
-    public Text maxDamageText;
-    public Text minDamageText;
-    public Text criticalMultiplierText;
-    public Text criticalChanceText;
+    private Character _character;
 
-
-    // Start is called before the first frame update
-    void Start()
+    private void Start()
     {
+        FindCharacter();
     }
 
-    // Update is called once per frame
-    void Update()
+    private void Update()
     {
-        if (character == null)
-        {
-            character = GameObject.FindGameObjectWithTag("Player").GetComponent<Character>();
-            Debug.Log("寻找中");
-        }
-        UpdateCurrentLevelText();
-        UpdateMaxHpText();
-        UpdateCurrentHpText();
-        UpdateMaxPowerText();
+        if (_character == null)
+            FindCharacter();
+
+        if (_character == null) return; // 还没找到，跳过本帧
+
+        var stats = GameManager.Instance?.characterStats;
+        if (stats == null) return;
+
+        UpdateCurrentLevelText(stats);
+        UpdateMaxHpText(stats);
+        UpdateCurrentHpText(stats);
+        UpdateMaxPowerText(stats);
         UpdateCurrentPowerText();
-        UpdateMinDamageText();
-        UpdateMaxDamageText();
-        UpdateCriticalMultiplierText();
-        UpdateCriticalChanceText();
-    }
-    void UpdateCurrentLevelText()
-    {
-        levelText.text = "等级: " + GameManager.Instance.characterStats.CurrentLevel.ToString("00");
-    }
-    void UpdateMaxHpText()
-    {
-        maxHpText.text = GameManager.Instance.characterStats.MaxHealth.ToString();
-    }
-    void UpdateCurrentHpText()
-    {
-        // 设置等级文本，格式为 "Level  " 加上两位数的当前等级
-        currentHpText.text = GameManager.Instance.characterStats.CurrentHealth.ToString();
-    }
-    void UpdateMaxPowerText()
-    {
-        maxPowerText.text = GameManager.Instance.characterStats.MaxPower.ToString();
-    }
-    void UpdateCurrentPowerText()
-    {
-        currentPowerText.text = ((int)character.currentPower).ToString();
-    }
-    void UpdateMaxDamageText()
-    {
-        maxDamageText.text = GameManager.Instance.characterStats.MaxDamage.ToString();
-    }
-    void UpdateMinDamageText()
-    {
-        minDamageText.text = GameManager.Instance.characterStats.MinDamage.ToString();
-    }
-    void UpdateCriticalMultiplierText()
-    {
-        criticalMultiplierText.text = GameManager.Instance.characterStats.CriticalMultiplier.ToString();
-    }
-    void UpdateCriticalChanceText()
-    {
-        criticalChanceText.text = GameManager.Instance.characterStats.CriticalChance.ToString();
+        UpdateMinDamageText(stats);
+        UpdateMaxDamageText(stats);
+        UpdateCriticalMultiplierText(stats);
+        UpdateCriticalChanceText(stats);
     }
 
+    private void FindCharacter()
+    {
+        var player = GameObject.FindGameObjectWithTag("Player");
+        if (player != null)
+            _character = player.GetComponent<Character>();
+    }
+
+    private void UpdateCurrentLevelText(CharacterStats stats)
+    {
+        if (_levelText != null)
+            _levelText.text = $"等级: {stats.CurrentLevel:00}";
+    }
+
+    private void UpdateMaxHpText(CharacterStats stats)
+    {
+        if (_maxHpText != null)
+            _maxHpText.text = stats.MaxHealth.ToString();
+    }
+
+    private void UpdateCurrentHpText(CharacterStats stats)
+    {
+        if (_currentHpText != null)
+            _currentHpText.text = stats.CurrentHealth.ToString();
+    }
+
+    private void UpdateMaxPowerText(CharacterStats stats)
+    {
+        if (_maxPowerText != null)
+            _maxPowerText.text = stats.MaxPower.ToString();
+    }
+
+    private void UpdateCurrentPowerText()
+    {
+        if (_currentPowerText != null && _character != null)
+            _currentPowerText.text = ((int)_character.currentPower).ToString();
+    }
+
+    private void UpdateMinDamageText(CharacterStats stats)
+    {
+        if (_minDamageText != null)
+            _minDamageText.text = stats.MinDamage.ToString();
+    }
+
+    private void UpdateMaxDamageText(CharacterStats stats)
+    {
+        if (_maxDamageText != null)
+            _maxDamageText.text = stats.MaxDamage.ToString();
+    }
+
+    private void UpdateCriticalMultiplierText(CharacterStats stats)
+    {
+        if (_criticalMultiplierText != null)
+            _criticalMultiplierText.text = stats.CriticalMultiplier.ToString();
+    }
+
+    private void UpdateCriticalChanceText(CharacterStats stats)
+    {
+        if (_criticalChanceText != null)
+            _criticalChanceText.text = stats.CriticalChance.ToString();
+    }
 }

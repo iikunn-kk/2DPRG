@@ -6,7 +6,7 @@ public class SceneController : Singleton<SceneController>
     private const string FirstLevelSceneName = "Training Ground";
     private const string MainSceneName = "Main";
 
-    public GameObject playerPrefab;    // 玩家预制体引用
+    // 玩家预制体已迁移至 PlayerFactory._playerPrefab
     public SceneFader sceneFaderPrefab;    // 场景切换淡入淡出预制体引用
 
     GameObject player;//当前玩家对象实例
@@ -90,7 +90,9 @@ public class SceneController : Singleton<SceneController>
                 yield break;
             }
 
-            yield return Instantiate(playerPrefab, destination.transform.position, destination.transform.rotation);// 在新场景生成玩家
+            // 通过工厂生成玩家（Instantiate + Awake/OnEnable/Start 自动触发）
+            yield return PlayerFactory.Instance.CreatePlayer(
+                destination.transform.position, destination.transform.rotation);
 
             if (SaveManager.Instance != null)
             {
@@ -193,8 +195,10 @@ public class SceneController : Singleton<SceneController>
 
         if (GameManager.Instance != null && GameManager.Instance.GetEntrance() != null)
         {
-            yield return player = Instantiate(playerPrefab, GameManager.Instance.GetEntrance().position, GameManager.Instance.GetEntrance().rotation);//实例化一个新的玩家
-            //在PlayerController脚本中的OnEnable函数中，玩家自行拿到上一次保存的人物属性的数据
+            // 通过工厂生成玩家（Unity 自动触发 Awake→OnEnable→Start）
+            player = PlayerFactory.Instance.CreatePlayer(
+                GameManager.Instance.GetEntrance().position,
+                GameManager.Instance.GetEntrance().rotation);
             UnityEngine.Debug.Log("人物实例化完毕");
         }
         else
@@ -278,7 +282,11 @@ public class SceneController : Singleton<SceneController>
 
         if (GameManager.Instance != null && GameManager.Instance.GetEntrance() != null)
         {
-            yield return player = Instantiate(playerPrefab, GameManager.Instance.GetEntrance().position, GameManager.Instance.GetEntrance().rotation);//实例化一个新的玩家//在PlayerController脚本中的OnEnable函数中，玩家自行拿到上一次保存的人物属性的数据
+            // 通过工厂生成玩家
+            player = PlayerFactory.Instance.CreatePlayer(
+                GameManager.Instance.GetEntrance().position,
+                GameManager.Instance.GetEntrance().rotation);
+            UnityEngine.Debug.Log("人物实例化完毕");
             UnityEngine.Debug.Log("人物实例化完毕");
         }
 
