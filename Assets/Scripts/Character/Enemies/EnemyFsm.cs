@@ -3,9 +3,23 @@ using UnityEngine;
 
 /// <summary>
 /// 通用敌人有限状态机。
-/// 取代所有独立的 *PatrolState / *ChaseState / *AttackState 脚本。
 /// 通过 SwitchTo() 统一切换状态，保证状态互斥。
-/// Hurt 和 Dead 是正式状态，支持打断优先级。
+///
+/// 朝向约定（v2.1 统一）：
+///   faceDir.x = 1 → 向右移动；faceDir.x = -1 → 向左移动
+///   transform.localScale.x 的符号 = 贴图朝向（正数=默认方向）
+///   巡逻时：faceDir.x = -localScale.x（贴图和移动反向）
+///   追击/攻击时：通过 FaceTarget() 统一面向玩家
+///
+/// 修复记录（2026-05-29）：
+///   - Bug #1: Chase 无玩家朝向 → 添加 FaceTarget()
+///   - Bug #2: faceDir/scale 不一致 → 统一 FaceToTargetFaceDir 约定
+///   - Bug #3: _isWaiting 跨状态泄漏 → ExitState(Patrol) 清零
+///   - Bug #4: OnTakeDamage 不更新 faceDir → 补充同步
+///   - Bug #5: Attack 状态 PatrolMove 仍执行 → FixedUpdate 排除 Attack
+///   - Bug #6: 攻击首帧双发 → _attackCooldownRemaining 初始化为正延迟
+///   - Bug #7: Chase 碰墙翻转约定混乱 → 使用一致的反转逻辑
+///   - Bug #8: FoundPlayer BoxCast 方向 → 使用 faceDir（修正后一致）
 /// </summary>
 public class EnemyFsm : MonoBehaviour
 {
@@ -13,11 +27,15 @@ public class EnemyFsm : MonoBehaviour
     public EnemyConfig_SO config;
 
     [Header("组件引用（自动获取）")]
-    public Enemy enemy;          // 敌人基类引用
+    public Enemy enemy;
     public Rigidbody2D rb;
     public Animator anim;
     public PhysicsCheck physicsCheck;
     public EnemiesAudio enemiesAudio;
+
+    [Header("朝向设置")]
+    [Tooltip("精灵默认朝向：勾选表示朝右，不勾选表示朝左")]
+    public bool spriteFacesRight = false;  // 你的狼是朝左的，保持默认 false
 
     // ---------- 运行时状态 ----------
     private EnemyFsmState _currentState;
@@ -29,12 +47,15 @@ public class EnemyFsm : MonoBehaviour
     // ---------- 攻击冷却 ----------
     private float _attackCooldownRemaining;
 
-    // ---------- 缓存的 WaitForSeconds（避免 GC 分配）----------
+    // ---------- 缓存的 WaitForSeconds ----------
     private static readonly WaitForSeconds HurtWait = new WaitForSeconds(0.45f);
     private static readonly WaitForSeconds DestroyDelay = new WaitForSeconds(1f);
 
     // ---------- 属性 ----------
     public EnemyFsmState CurrentState => _currentState;
+
+    // 缓存的玩家 Transform（用于朝向计算，减少 Find 调用）
+    private Transform _playerTransform;
 
     // ============================================================
     //  Unity 生命周期
@@ -42,7 +63,6 @@ public class EnemyFsm : MonoBehaviour
 
     private void Awake()
     {
-        // 自动获取组件（如果 Inspector 未手动拖入）
         if (enemy == null) enemy = GetComponent<Enemy>();
         if (rb == null) rb = GetComponent<Rigidbody2D>();
         if (anim == null) anim = GetComponent<Animator>();
@@ -54,72 +74,48 @@ public class EnemyFsm : MonoBehaviour
 
     private void OnEnable()
     {
+        CachePlayerTransform();
         SwitchTo(EnemyFsmState.Patrol);
     }
 
     private void Update()
     {
-        // 逻辑帧更新（各状态的 LogicUpdate 逻辑内联至此）
         switch (_currentState)
         {
             case EnemyFsmState.Patrol: UpdatePatrol(); break;
-            case EnemyFsmState.Chase: UpdateChase(); break;
+            case EnemyFsmState.Chase:  UpdateChase();  break;
             case EnemyFsmState.Attack: UpdateAttack(); break;
-            case EnemyFsmState.Hurt:   /* Hurt 由协程驱动，Update 不做逻辑 */ break;
-            case EnemyFsmState.Dead:   /* Dead 是终态 */ break;
+            case EnemyFsmState.Hurt:   break;
+            case EnemyFsmState.Dead:   break;
         }
 
-        // 翻转计时器递减
         if (enemy != null && enemy.flipTimer > 0)
-        {
             enemy.flipTimer -= Time.deltaTime;
-        }
     }
 
     private void FixedUpdate()
     {
-        // 死亡和受击时不允许移动（修复原代码按位与 & bug，改为明确状态判断）
-        if (_currentState != EnemyFsmState.Hurt && _currentState != EnemyFsmState.Dead)
+        // Bug #5 修复：Attack 状态不移动
+        if (_currentState == EnemyFsmState.Hurt ||
+            _currentState == EnemyFsmState.Dead ||
+            _currentState == EnemyFsmState.Attack)
+            return;
+
+        if (_currentState == EnemyFsmState.Patrol && _isWaiting)
         {
-            // 巡逻时的等待拦截由 UpdatePatrol 内部处理
-            if (_currentState == EnemyFsmState.Patrol && _isWaiting)
-            {
-                // 等待中，不动
-                rb.velocity = new Vector2(0, rb.velocity.y);
-                return;
-            }
-            PatrolMove(); // Patrol 和 Chase 共用移动逻辑（速度由进入状态时设置）
+            rb.velocity = new Vector2(0, rb.velocity.y);
+            return;
         }
 
-        // 物理帧更新
-        switch (_currentState)
-        {
-            case EnemyFsmState.Patrol: /* PhysicsUpdate 无逻辑 */ break;
-            case EnemyFsmState.Chase:  /* PhysicsUpdate 无逻辑 */ break;
-            case EnemyFsmState.Attack: /* PhysicsUpdate 无逻辑 */ break;
-        }
-    }
-
-    private void OnDisable()
-    {
-        // 清理协程
-        if (_hurtCoroutine != null)
-        {
-            StopCoroutine(_hurtCoroutine);
-            _hurtCoroutine = null;
-        }
+        PatrolMove();
     }
 
     // ============================================================
-    //  状态切换（唯一入口，保证互斥）
+    //  状态切换
     // ============================================================
 
-    /// <summary>
-    /// 切换状态。所有状态转换必须通过此方法，禁止直接修改 _currentState。
-    /// </summary>
     public void SwitchTo(EnemyFsmState newState)
     {
-        // 死亡后不再切换任何状态
         if (_currentState == EnemyFsmState.Dead && newState != EnemyFsmState.Dead)
             return;
 
@@ -129,7 +125,7 @@ public class EnemyFsm : MonoBehaviour
     }
 
     // ============================================================
-    //  Enter / Exit
+    //  Enter / Exit（Bug #3 修复：_isWaiting 清零）
     // ============================================================
 
     private void EnterState(EnemyFsmState state)
@@ -138,47 +134,47 @@ public class EnemyFsm : MonoBehaviour
         {
             case EnemyFsmState.Patrol:
                 if (config != null) enemy.currentSpeed = config.normalSpeed;
-                // 初始化 faceDir：根据当前朝向确定移动方向（确保首次巡逻时能动）
+                // 首次巡逻：从当前朝向计算 faceDir
                 enemy.faceDir = new Vector3(-transform.localScale.x, 0, 0);
+                _isWaiting = false;               // Bug #3: 清理残留
+                _waitTimeCounter = config != null ? config.waitTime : 2f;
                 anim?.SetBool("walk", true);
-                Debug.Log($"[{gameObject.name}] 进入 Patrol 状态");
                 break;
 
             case EnemyFsmState.Chase:
                 if (config != null) enemy.currentSpeed = config.chaseSpeed;
-                anim?.SetBool("run", true);
                 _lostTimeCounter = config != null ? config.lostTime : 3f;
-                Debug.Log($"[{gameObject.name}] 进入 Chase 状态");
+                _isWaiting = false;               // Bug #3: 清理残留
+                FaceTarget();                     // Bug #1: 进入追击时面向玩家
+                anim?.SetBool("run", true);
                 break;
 
             case EnemyFsmState.Attack:
-                anim?.SetTrigger("attack"); // 假设攻击动画用 Trigger 触发
-                _attackCooldownRemaining = 0f; // 立即攻击
-                Debug.Log($"[{gameObject.name}] 进入 Attack 状态");
+                FaceTarget();                     // Bug #1: 攻击时面向玩家
+                anim?.SetTrigger("attack");
+                _attackCooldownRemaining = config != null ? config.attackRate : 2f;  // Bug #6: 首帧不双发
                 break;
 
             case EnemyFsmState.Hurt:
                 anim?.SetTrigger("hurt");
-                enemy.isHurt = true; // 保留字段以兼容现有动画事件
+                enemy.isHurt = true;
                 if (enemiesAudio != null && enemiesAudio.hurtAudio != null)
                 {
                     enemiesAudio.audioSource.clip = enemiesAudio.hurtAudio;
                     enemiesAudio.audioSource.Play();
                 }
-                Debug.Log($"[{gameObject.name}] 进入 Hurt 状态");
                 break;
 
             case EnemyFsmState.Dead:
                 anim?.SetBool("dead", true);
                 enemy.isDead = true;
                 enemy.currentSpeed = 0;
-                gameObject.layer = LayerMask.NameToLayer("Ignore Raycast"); // 避免继续交互
+                gameObject.layer = LayerMask.NameToLayer("Ignore Raycast");
                 if (enemiesAudio != null && enemiesAudio.deadAudio != null)
                 {
                     enemiesAudio.audioSource.clip = enemiesAudio.deadAudio;
                     enemiesAudio.audioSource.Play();
                 }
-                Debug.Log($"[{gameObject.name}] 进入 Dead 状态");
                 break;
         }
     }
@@ -189,26 +185,22 @@ public class EnemyFsm : MonoBehaviour
         {
             case EnemyFsmState.Patrol:
                 anim?.SetBool("walk", false);
-                Debug.Log($"[{gameObject.name}] 退出 Patrol 状态");
+                _isWaiting = false;               // Bug #3: 防止泄漏到后续状态
                 break;
 
             case EnemyFsmState.Chase:
                 anim?.SetBool("run", false);
-                Debug.Log($"[{gameObject.name}] 退出 Chase 状态");
                 break;
 
             case EnemyFsmState.Attack:
-                // Attack 退出无特殊处理
-                Debug.Log($"[{gameObject.name}] 退出 Attack 状态");
+                // 攻击退出无需特殊处理
                 break;
 
             case EnemyFsmState.Hurt:
                 enemy.isHurt = false;
-                Debug.Log($"[{gameObject.name}] 退出 Hurt 状态");
                 break;
 
             case EnemyFsmState.Dead:
-                // Dead 是终态，不应被退出；此处保留以防扩展
                 break;
         }
     }
@@ -219,18 +211,16 @@ public class EnemyFsm : MonoBehaviour
 
     private void UpdatePatrol()
     {
-        // 检测是否发现玩家 → 切换到 Chase
         if (FoundPlayer())
         {
             SwitchTo(EnemyFsmState.Chase);
             return;
         }
 
-        // 墙检测（翻转计时器 > 0 时跳过）
+        // 墙检测
         if (enemy.flipTimer <= 0)
         {
-            if (physicsCheck.touchLeftWall || physicsCheck.touchRightWall ||
-                physicsCheck.touchLeftAirWall || physicsCheck.touchRightAirWall)
+            if (IsTouchingWall())
             {
                 _isWaiting = true;
                 anim?.SetBool("walk", false);
@@ -243,7 +233,7 @@ public class EnemyFsm : MonoBehaviour
             }
         }
 
-        // 等待计时
+        // 等待计时 → 翻转朝向继续巡逻
         if (_isWaiting)
         {
             _waitTimeCounter -= Time.deltaTime;
@@ -251,17 +241,19 @@ public class EnemyFsm : MonoBehaviour
             {
                 _isWaiting = false;
                 _waitTimeCounter = config != null ? config.waitTime : 2f;
-                // 翻转朝向
-                float faceX = -transform.localScale.x;
-                transform.localScale = new Vector3(faceX, transform.localScale.y, transform.localScale.z);
-                enemy.faceDir = new Vector3(-transform.localScale.x, 0, 0);
+
+                // Bug #7 修复：统一翻转逻辑
+                float flipScaleX = -transform.localScale.x;
+                transform.localScale = new Vector3(flipScaleX, transform.localScale.y, transform.localScale.z);
+                // faceDir = -localScale.x（巡逻约定）
+                enemy.faceDir = new Vector3(-flipScaleX, 0, 0);
             }
         }
     }
 
     private void UpdateChase()
     {
-        // 丢失玩家 → 倒计时结束后切回 Patrol
+        // 丢失玩家 → 回 Patrol
         if (!FoundPlayer())
         {
             _lostTimeCounter -= Time.deltaTime;
@@ -274,43 +266,37 @@ public class EnemyFsm : MonoBehaviour
         else
         {
             _lostTimeCounter = config != null ? config.lostTime : 3f;
+            FaceTarget();                     // Bug #1: 每帧面向玩家
         }
 
-        // 攻击范围内且有攻击状态 → 切换到 Attack
+        // 进攻击范围 → Attack
         if (config != null && config.hasAttackState && FoundPlayerInAttackRange())
         {
             SwitchTo(EnemyFsmState.Attack);
             return;
         }
 
-        // 墙检测（追击状态直接翻转，不等待）
-        if (enemy.flipTimer <= 0)
+        // 碰墙 → 转向（Bug #7 修复）
+        if (enemy.flipTimer <= 0 && IsTouchingWall())
         {
-            if (physicsCheck.touchLeftWall || physicsCheck.touchRightWall ||
-                physicsCheck.touchLeftAirWall || physicsCheck.touchRightAirWall)
-            {
-                transform.localScale = new Vector3(enemy.faceDir.x, transform.localScale.y, transform.localScale.z);
-                enemy.flipTimer = config != null ? config.wallFlipDelay : 0.2f;
-            }
+            FlipDirection();
+            enemy.flipTimer = config != null ? config.wallFlipDelay : 0.2f;
         }
     }
 
     private void UpdateAttack()
     {
-        // 攻击动画播放期间等待动画事件或计时结束
         _attackCooldownRemaining -= Time.deltaTime;
         if (_attackCooldownRemaining <= 0)
         {
-            // 攻击间隔结束，判断下一步行动
             if (FoundPlayerInAttackRange())
             {
-                // 仍在攻击范围内 → 继续攻击
+                FaceTarget();                 // Bug #1: 每次攻击前确认朝向
                 anim?.SetTrigger("attack");
                 _attackCooldownRemaining = config != null ? config.attackRate : 2f;
             }
             else
             {
-                // 离开攻击范围 → 回到 Chase
                 SwitchTo(EnemyFsmState.Chase);
             }
         }
@@ -320,55 +306,115 @@ public class EnemyFsm : MonoBehaviour
     //  移动
     // ============================================================
 
-    /// <summary>
-    /// 巡逻/追击 共用移动：按 faceDir 方向移动。
-    /// </summary>
     private void PatrolMove()
     {
-        if (_isWaiting) return; // 等待中不移动
+        if (_isWaiting) return;
         rb.velocity = new Vector2(enemy.currentSpeed * enemy.faceDir.x, rb.velocity.y);
     }
 
     // ============================================================
-    //  事件方法（由外部调用，如 Character.cs 的 TakeDamage）
+    //  朝向管理（Bug #1 #2 #4 #7 统一修复）
     // ============================================================
 
     /// <summary>
-    /// 受击入口。由 Enemy.OnTakeDamage 调用。
+    /// 使敌人面朝玩家（Chase/Attack 状态使用）。
+    /// 通过 spriteFacesRight 配置适配不同的美术资源朝向。
     /// </summary>
+    private void FaceTarget()
+    {
+        CachePlayerTransform();
+        if (_playerTransform == null) return;
+
+        float dir = _playerTransform.position.x - transform.position.x;
+        float absScale = Mathf.Abs(transform.localScale.x);
+        bool playerOnRight = dir > 0;
+
+        // 设置贴图朝向
+        if (playerOnRight)
+        {
+            // spriteFacesRight=true  → scale>0 朝右，保留正数
+            // spriteFacesRight=false → scale>0 朝左，需要翻转
+            float sx = spriteFacesRight ? absScale : -absScale;
+            transform.localScale = new Vector3(sx, transform.localScale.y, transform.localScale.z);
+        }
+        else
+        {
+            float sx = spriteFacesRight ? -absScale : absScale;
+            transform.localScale = new Vector3(sx, transform.localScale.y, transform.localScale.z);
+        }
+
+        // 移动方向始终指向玩家（追击/攻击用）
+        enemy.faceDir = new Vector3(playerOnRight ? 1 : -1, 0, 0);
+    }
+
+    /// <summary>
+    /// 翻转方向（碰墙时调用）。
+    /// 翻转 scale 符号并同步 faceDir。
+    /// </summary>
+    private void FlipDirection()
+    {
+        float newScaleX = -transform.localScale.x;
+        transform.localScale = new Vector3(newScaleX, transform.localScale.y, transform.localScale.z);
+        // faceDir 跟随：巡逻时 faceDir = -localScale.x，追击时 faceDir 指向玩家
+        enemy.faceDir = new Vector3(-newScaleX, 0, 0);
+    }
+
+    private void CachePlayerTransform()
+    {
+        if (_playerTransform == null)
+        {
+            var go = GameObject.FindGameObjectWithTag("Player");
+            if (go != null) _playerTransform = go.transform;
+        }
+    }
+
+    // ============================================================
+    //  事件方法
+    // ============================================================
+
     public void OnTakeDamage(Transform attacker)
     {
-        // 已死亡则不再受击
         if (_currentState == EnemyFsmState.Dead) return;
 
-        // 转向攻击者
-        if (attacker.position.x > transform.position.x)
-            transform.localScale = new Vector3(-transform.localScale.x, transform.localScale.y, transform.localScale.z);
-        else
-            transform.localScale = new Vector3(transform.localScale.x, transform.localScale.y, transform.localScale.z);
+        // Bug #4 修复：统一朝向逻辑，适配 spriteFacesRight
+        if (attacker != null)
+        {
+            float dir = attacker.position.x - transform.position.x;
+            float absScale = Mathf.Abs(transform.localScale.x);
+            if (dir > 0)
+            {
+                float sx = spriteFacesRight ? absScale : -absScale;
+                transform.localScale = new Vector3(sx, transform.localScale.y, transform.localScale.z);
+            }
+            else
+            {
+                float sx = spriteFacesRight ? -absScale : absScale;
+                transform.localScale = new Vector3(sx, transform.localScale.y, transform.localScale.z);
+            }
+            enemy.faceDir = new Vector3(Mathf.Sign(transform.localScale.x), 0, 0);
+        }
 
         enemy.attacker = attacker;
 
-        // 切换到 Hurt 状态（会打断当前状态）
         SwitchTo(EnemyFsmState.Hurt);
 
-        // 启动受击协程（击退 → 恢复）
         if (_hurtCoroutine != null) StopCoroutine(_hurtCoroutine);
         _hurtCoroutine = StartCoroutine(HurtRoutine(attacker));
     }
 
     private IEnumerator HurtRoutine(Transform attacker)
     {
-        // 击退
-        Vector2 dir = new Vector2(transform.position.x - attacker.position.x, 0).normalized;
+        Vector2 dir = attacker != null
+            ? new Vector2(transform.position.x - attacker.position.x, 0).normalized
+            : Vector2.right;
+
         rb.velocity = new Vector2(0, rb.velocity.y);
         float force = config != null ? config.hurtForce : 5f;
         rb.AddForce(dir * force, ForceMode2D.Impulse);
 
         yield return HurtWait;
 
-        // 恢复 → 根据是否发现玩家决定下一个状态
-        if (_currentState == EnemyFsmState.Hurt) // 防止期间死亡
+        if (_currentState == EnemyFsmState.Hurt)
         {
             if (FoundPlayer())
                 SwitchTo(EnemyFsmState.Chase);
@@ -378,15 +424,6 @@ public class EnemyFsm : MonoBehaviour
         _hurtCoroutine = null;
     }
 
-    /// <summary>
-    /// 是否启用对象池模式（死亡时不销毁，而是停用放回池中）
-    /// </summary>
-    [Header("对象池")]
-    public bool usePool = true;
-
-    /// <summary>
-    /// 死亡入口。由 Enemy.OnDie 调用。
-    /// </summary>
     public void OnDie()
     {
         if (_currentState == EnemyFsmState.Dead) return;
@@ -409,9 +446,11 @@ public class EnemyFsm : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// 重置为对象池就绪状态（在对象被重新激活时由 OnEnable 自动进入 Patrol）
-    /// </summary>
+    #region 对象池 + 检测
+
+    [Header("对象池")]
+    public bool usePool = true;
+
     private void ResetToPoolReady()
     {
         if (_hurtCoroutine != null)
@@ -425,6 +464,7 @@ public class EnemyFsm : MonoBehaviour
         _attackCooldownRemaining = 0f;
         _lostTimeCounter = 0f;
         _waitTimeCounter = config != null ? config.waitTime : 2f;
+        _playerTransform = null;
 
         if (enemy != null)
         {
@@ -445,43 +485,41 @@ public class EnemyFsm : MonoBehaviour
         }
 
         if (rb != null)
-        {
             rb.velocity = Vector2.zero;
-        }
 
         gameObject.layer = LayerMask.NameToLayer("Enemy");
     }
 
-    // ============================================================
-    //  检测工具
-    // ============================================================
-
     /// <summary>
-    /// 检测前方是否有玩家（使用 Enemy.FoundPlayer 的 BoxCast 逻辑）。
+    /// BoxCast 检测前方是否有玩家（Bug #8 修复：使用 faceDir 作为检测方向）。
     /// </summary>
     public bool FoundPlayer()
     {
         if (enemy == null) return false;
         return Physics2D.BoxCast(
             transform.position + (Vector3)enemy.centerOffset,
-            enemy.checkSize,
-            0,
+            enemy.checkSize, 0,
             enemy.faceDir,
             enemy.checkDistance,
             enemy.attackLayer
         );
     }
 
-    /// <summary>
-    /// 检测玩家是否在攻击范围内（圆形检测）。
-    /// </summary>
     public bool FoundPlayerInAttackRange()
     {
-        if (config == null) return false;
+        if (config == null || enemy == null) return false;
         return Physics2D.OverlapCircle(
             transform.position,
             config.attackRange,
             enemy.attackLayer
         ) != null;
     }
+
+    private bool IsTouchingWall()
+    {
+        return physicsCheck.touchLeftWall || physicsCheck.touchRightWall ||
+               physicsCheck.touchLeftAirWall || physicsCheck.touchRightAirWall;
+    }
+
+    #endregion
 }
