@@ -10,9 +10,12 @@ using UnityEngine.InputSystem;
 /// </summary>
 public class PlayerController : Singleton<PlayerController>
 {
-    [Header("土狼时间参数")]
-    [SerializeField] float runSpeed = 5f;
-    [SerializeField] float coyoteTime = 0.1f;
+    [Header("土狼时间 & 输入缓冲")]
+    [SerializeField] float coyoteTime = 0.1f;   // 离开平台后仍可跳跃的时间窗口
+    [SerializeField] float jumpBufferTime = 0.15f; // 提前按跳跃的缓存时间
+    private float _coyoteTimeCounter;             // 土狼时间倒计时
+    private float _jumpBufferCounter;             // 跳跃缓冲倒计时
+    private bool _hasJumpBuffer;                  // 是否有待执行的缓冲跳跃
 
     [Header("二段跳计数器")]
     public float maximumNumberJumps;
@@ -57,9 +60,7 @@ public class PlayerController : Singleton<PlayerController>
     private PlayerState _state;
     private Coroutine _slideCoroutine;
     private Coroutine _jumpResetCoroutine;
-
-    // 事件委托字段：必须存为字段，确保 Add/Remove 使用同一个引用，防止场景切换时事件泄漏
-    private UnityAction<bool> _onGroundChanged;
+    private bool _wasGrounded;                // 上一帧是否在地面（用于检测落地瞬间）
 
     // ============================================================
     //  Unity 生命周期
@@ -95,16 +96,6 @@ public class PlayerController : Singleton<PlayerController>
 
     private void OnEnable()
     {
-        _onGroundChanged = CoyoteTime =>
-        {
-            if (CoyoteTime == false)
-            {
-                if (rb == null) return; // 场景切换时 rb 可能已被销毁
-                rb.gravityScale = 0;
-                StartCoroutine(WaitForCoyoteTime());
-            }
-        };
-        EventCenter.Instance.AddEventListener<bool>(EventCenter.Events.IsGround, _onGroundChanged);
         inputControl.Enable();
         GameManager.Instance.RegisterPlayer(characterStats);
         Debug.Log("注册成功");
@@ -118,11 +109,6 @@ public class PlayerController : Singleton<PlayerController>
 
     private void OnDisable()
     {
-        if (_onGroundChanged != null)
-        {
-            EventCenter.Instance.RemoveEventListener<bool>("isGround", _onGroundChanged);
-            _onGroundChanged = null;
-        }
         if (inputControl != null)
         {
             inputControl.Disable();
@@ -137,10 +123,46 @@ public class PlayerController : Singleton<PlayerController>
         if (inputDirection.x > 0) faceDir = 1;
         if (inputDirection.x < 0) faceDir = -1;
 
-        // 土狼时间：落地且不在跳跃状态时重置二段跳
-        if ((physicsCheck.isGround || physicsCheck.onWall) && _state != PlayerState.Jump)
+        // ===== 土狼时间倒计时 =====
+        if (_coyoteTimeCounter > 0)
         {
-            currentNumberJumps = 0;
+            _coyoteTimeCounter -= Time.deltaTime;
+            if (_coyoteTimeCounter <= 0)
+                _coyoteTimeCounter = 0;
+        }
+
+        // ===== 跳跃缓冲倒计时 =====
+        if (_hasJumpBuffer)
+        {
+            _jumpBufferCounter -= Time.deltaTime;
+            if (_jumpBufferCounter <= 0)
+            {
+                _hasJumpBuffer = false;
+                _jumpBufferCounter = 0;
+            }
+        }
+
+        // ===== 落地瞬间：重置跳跃次数 + 执行缓冲跳跃 =====
+        if (physicsCheck.isGround)
+        {
+            // 仅从空中回到地面的那一帧才重置（避免每帧清零导致二段跳被吞）
+            if (!_wasGrounded)
+            {
+                currentNumberJumps = 0;
+                _coyoteTimeCounter = 0;
+
+                // Input Buffer：落地时检查是否有缓存的跳跃
+                if (_hasJumpBuffer && _state != PlayerState.Jump)
+                {
+                    _hasJumpBuffer = false;
+                    ExecuteJump();
+                }
+            }
+            _wasGrounded = true;
+        }
+        else
+        {
+            _wasGrounded = false;
         }
 
         CheckState();
@@ -294,26 +316,61 @@ public class PlayerController : Singleton<PlayerController>
 
     private void Jump(InputAction.CallbackContext context)
     {
-        // Dialogue 和 Dead 状态禁止输入
         if (_state == PlayerState.Dead || _state == PlayerState.Dialogue)
             return;
 
-        if (currentNumberJumps < maximumNumberJumps)
+        // 能跳：直接执行
+        if (CanJumpNow())
         {
-            // 如果正在滑铲，先终止
-            if (_state == PlayerState.Slide)
-            {
-                SwitchTo(PlayerState.Jump);
-                StopCoroutine("TriggerSlide");
-            }
-
-            currentNumberJumps++;
-            rb.AddForce(transform.up * jumpForce, ForceMode2D.Impulse);
-            SwitchTo(PlayerState.Jump);
-
-            if (_jumpResetCoroutine != null) StopCoroutine(_jumpResetCoroutine);
-            _jumpResetCoroutine = StartCoroutine(ResetJumpingState());
+            ExecuteJump();
+            return;
         }
+
+        // 不能跳但有可能即将落地：缓冲输入
+        if (!physicsCheck.isGround && _state != PlayerState.Jump)
+        {
+            _jumpBufferCounter = jumpBufferTime;
+            _hasJumpBuffer = true;
+        }
+    }
+
+    /// <summary>
+    /// 判断当前是否可以跳跃：
+    ///   第一段（次数未消耗）→ 需要在地面或土狼时间窗口内
+    ///   第二段及以后          → 空中自由跳（二段跳/多段跳）
+    /// </summary>
+    private bool CanJumpNow()
+    {
+        if (currentNumberJumps >= maximumNumberJumps)
+            return false;
+
+        // 已经是空中跳跃（二段跳及以上）：随时允许
+        if (currentNumberJumps >= 1)
+            return true;
+
+        // 第一段跳跃：需要地面、土狼时间、或贴墙
+        return physicsCheck.isGround || _coyoteTimeCounter > 0 || physicsCheck.onWall;
+    }
+
+    /// <summary>
+    /// 执行跳跃（施加力 + 状态切换）。
+    /// </summary>
+    private void ExecuteJump()
+    {
+        if (_state == PlayerState.Slide)
+        {
+            SwitchTo(PlayerState.Jump);
+            StopCoroutine("TriggerSlide");
+        }
+
+        currentNumberJumps++;
+        _coyoteTimeCounter = 0;   // 消耗土狼时间
+        _hasJumpBuffer = false;   // 消耗缓冲
+        rb.AddForce(transform.up * jumpForce, ForceMode2D.Impulse);
+        SwitchTo(PlayerState.Jump);
+
+        if (_jumpResetCoroutine != null) StopCoroutine(_jumpResetCoroutine);
+        _jumpResetCoroutine = StartCoroutine(ResetJumpingState());
     }
 
     private void PlayerAttack(InputAction.CallbackContext context)
@@ -386,16 +443,6 @@ public class PlayerController : Singleton<PlayerController>
         yield return new WaitForSeconds(0.1f);
         if (_state == PlayerState.Jump)
             SwitchTo(PlayerState.Fall);
-    }
-
-    private IEnumerator WaitForCoyoteTime()
-    {
-        yield return new WaitForSeconds(coyoteTime);
-
-        // 添加 null 检查，防止场景切换后 rb 已被销毁
-        if (rb == null) yield break;
-
-        rb.gravityScale = 4;
     }
 
     // ============================================================
@@ -515,7 +562,13 @@ public class PlayerController : Singleton<PlayerController>
         {
             // 空中：上升=Jump，下落=Fall
             if (_state != PlayerState.Fall)
+            {
+                // 从地面进入 Fall → 启动土狼时间计数器
+                if (_state == PlayerState.Idle || _state == PlayerState.Run || _state == PlayerState.Crouch)
+                    _coyoteTimeCounter = coyoteTime;
+
                 SwitchTo(PlayerState.Fall);
+            }
         }
     }
 
