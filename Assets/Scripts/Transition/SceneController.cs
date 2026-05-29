@@ -218,11 +218,7 @@ public class SceneController : Singleton<SceneController>
 
         if (SaveManager.Instance != null)
         {
-            PlayerPrefs.SetString(SaveManager.Instance.sceneName, SceneManager.GetActiveScene().name); // 保存当前场景
-            if (PlayerController.Instance != null && !PlayerController.Instance.isDead)//只有人物非死亡状态下返回主场景才保存人物数据
-            {
-                SaveManager.Instance.SavePlayerData();//保存人物属性    
-            }
+            SaveManager.Instance.SavePlayerData(); // 保存当前场景 + 人物数据
         }
 
         UnityEngine.Debug.Log("当前保存的场景名字是：" + SceneManager.GetActiveScene().name);
@@ -266,7 +262,7 @@ public class SceneController : Singleton<SceneController>
 
         if (SaveManager.Instance != null)
         {
-            PlayerPrefs.SetString(SaveManager.Instance.sceneName, SceneManager.GetActiveScene().name); // 保存当前场景
+            SaveManager.Instance.SavePlayerData(); // 保存当前场景 + 人物数据
         }
 
         if (fade != null)

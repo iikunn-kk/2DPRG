@@ -5,7 +5,14 @@ using UnityEngine;
 /// 敌人基类。
 /// 作为 EnemyFsm 的数据容器，提供字段访问和事件转发。
 /// 所有敌人已迁移至 EnemyFsm，旧版 FSM 代码已删除。
+///
+/// 架构说明：
+///   Prefab 上需要同时挂载 Enemy（数据容器）+ EnemyFsm（状态机）两个组件。
+///   FrostSmallDragon / IceWolf 等子类为空壳（仅用于 Inspector 识别），
+///   所有行为由通用 EnemyFsm + EnemyConfig_SO 驱动，无需每个敌人写独立脚本。
+///   [RequireComponent] 确保挂载 Enemy 时自动添加 EnemyFsm。
 /// </summary>
+[RequireComponent(typeof(EnemyFsm))]
 public class Enemy : MonoBehaviour
 {
     [HideInInspector] public Rigidbody2D rb;

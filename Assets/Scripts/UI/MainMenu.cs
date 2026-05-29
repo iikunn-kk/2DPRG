@@ -58,11 +58,17 @@ public class MainMenu : MonoBehaviour
 
     /// <summary>
     /// 开始新游戏
-    /// 删除存档并跳转到第一关
+    /// 清除所有存档槽并跳转到第一关
     /// </summary>
     public void NewGame()
     {
-        PlayerPrefs.DeleteAll();
+        // 清除所有 3 个存档槽
+        if (SaveManager.Instance != null)
+        {
+            SaveManager.Instance.DeleteSave(0);
+            SaveManager.Instance.DeleteSave(1);
+            SaveManager.Instance.DeleteSave(2);
+        }
         
         if (SceneController.Instance != null)
         {

@@ -2,125 +2,107 @@ using System.Collections;
 using UnityEngine;
 
 /// <summary>
-/// 暂停面板管理器
+/// 暂停面板管理器。
+/// 负责暂停/继续游戏时的 BGM 控制和 UI 显示。
 /// </summary>
 public class PausePanel : Singleton<PausePanel>
 {
-    public GameObject pausePanel;//游戏暂停面板
-    private GameObject bgm;
-    private AudioSource bgmSource;
-    private PlayerAudio playerAudio;
+    public GameObject pausePanel;
+    private GameObject _bgm;
+    private AudioSource _bgmSource;
+    private PlayerAudio _playerAudio;
 
+    private static readonly WaitForSeconds DeadWait = new WaitForSeconds(1f);
 
     protected override void Awake()
     {
         base.Awake();
-        // pausePanel = GameObject.Find("PausePanel");
-        // pausePanel = FindFirstObjectByType<PausePanel>().gameObject;
-        bgm = GameObject.Find("BGM");
+        _bgm = GameObject.Find("BGM");
 
-        if (bgm == null)
-        {
+        if (_bgm == null)
             Debug.LogWarning("[PausePanel] 未找到 BGM 对象");
-        }
     }
+
     private void Start()
     {
-        if (bgm != null)
-        {
-            bgmSource = bgm.GetComponent<AudioSource>();
-        }
+        if (_bgm != null)
+            _bgmSource = _bgm.GetComponent<AudioSource>();
 
-        if (bgmSource == null)
-        {
+        if (_bgmSource == null)
             Debug.LogWarning("[PausePanel] 未找到 BGM AudioSource");
-        }
+
+        // 缓存 PlayerAudio 引用（不再每帧查找）
+        _playerAudio = FindFirstObjectByType<PlayerAudio>();
     }
-    private void Update()
+
+    private void OnEnable()
     {
-        if (playerAudio == null)
-        {
-            playerAudio = FindFirstObjectByType<PlayerAudio>();
-        }
+        // 场景切换后刷新缓存
+        _playerAudio = FindFirstObjectByType<PlayerAudio>();
     }
+
     public void PauseGame()
     {
         if (pausePanel != null)
-        {
             pausePanel.SetActive(true);
-        }
 
         Time.timeScale = 0;
 
-        if (bgmSource != null)
-        {
-            bgmSource.Pause();//暂停场景的BGM音乐
-        }
+        if (_bgmSource != null)
+            _bgmSource.Pause();
 
-        if (playerAudio != null && playerAudio.audioSource2 != null)
-        {
-            playerAudio.audioSource2.mute = true;//将人物走动声静音
-        }
+        MutePlayerAudio(true);
     }
+
     public void ContinueGame()
     {
         if (pausePanel != null)
-        {
             pausePanel.SetActive(false);
-        }
 
         Time.timeScale = 1;
 
-        if (bgmSource != null)
-        {
-            bgmSource.Play();//播放场景的BGM音乐
-        }
+        if (_bgmSource != null)
+            _bgmSource.Play();
 
-        if (playerAudio != null && playerAudio.audioSource2 != null)
-        {
-            playerAudio.audioSource2.mute = false;//关闭人物走动声静音
-        }
+        MutePlayerAudio(false);
     }
+
     public void RestartGame()
     {
         if (pausePanel != null)
-        {
             pausePanel.SetActive(false);
-        }
 
         Time.timeScale = 1;
 
-        if (bgmSource != null)
-        {
-            bgmSource.Play();//播放场景的BGM音乐
-        }
+        if (_bgmSource != null)
+            _bgmSource.Play();
 
-        if (playerAudio != null && playerAudio.audioSource2 != null)
-        {
-            playerAudio.audioSource2.mute = false;//关闭人物走动声静音
-        }
+        MutePlayerAudio(false);
 
-        if (SceneController.Instance != null)
-        {
-            SceneController.Instance.RestartGameScene();
-        }
+        SceneController.Instance?.RestartGameScene();
     }
+
     public void QuitGame()
     {
         if (SceneController.Instance != null)
-        {
-            SceneController.Instance.TransitionToMain();//返回主场景
-        }
+            SceneController.Instance.TransitionToMain();
         Time.timeScale = 1;
     }
+
     public void DeadToRestartGame()
     {
         StartCoroutine(DeadToPauseGame());
     }
 
-    IEnumerator DeadToPauseGame()
+    private IEnumerator DeadToPauseGame()
     {
-        yield return new WaitForSeconds(1f);
+        yield return DeadWait;
         PauseGame();
+    }
+
+    private void MutePlayerAudio(bool mute)
+    {
+        if (_playerAudio != null && _playerAudio.audioSource2 != null)
+            _playerAudio.audioSource2.mute = mute;
     }
 }

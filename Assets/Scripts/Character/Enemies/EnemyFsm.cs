@@ -379,19 +379,77 @@ public class EnemyFsm : MonoBehaviour
     }
 
     /// <summary>
+    /// 是否启用对象池模式（死亡时不销毁，而是停用放回池中）
+    /// </summary>
+    [Header("对象池")]
+    public bool usePool = true;
+
+    /// <summary>
     /// 死亡入口。由 Enemy.OnDie 调用。
     /// </summary>
     public void OnDie()
     {
         if (_currentState == EnemyFsmState.Dead) return;
         SwitchTo(EnemyFsmState.Dead);
-        StartCoroutine(DestroyAfterDeath());
+        StartCoroutine(AfterDeathRoutine());
     }
 
-    private IEnumerator DestroyAfterDeath()
+    private IEnumerator AfterDeathRoutine()
     {
         yield return DestroyDelay;
-        Destroy(gameObject);
+
+        if (usePool)
+        {
+            ResetToPoolReady();
+            gameObject.SetActive(false);
+        }
+        else
+        {
+            Destroy(gameObject);
+        }
+    }
+
+    /// <summary>
+    /// 重置为对象池就绪状态（在对象被重新激活时由 OnEnable 自动进入 Patrol）
+    /// </summary>
+    private void ResetToPoolReady()
+    {
+        if (_hurtCoroutine != null)
+        {
+            StopCoroutine(_hurtCoroutine);
+            _hurtCoroutine = null;
+        }
+
+        _currentState = EnemyFsmState.Patrol;
+        _isWaiting = false;
+        _attackCooldownRemaining = 0f;
+        _lostTimeCounter = 0f;
+        _waitTimeCounter = config != null ? config.waitTime : 2f;
+
+        if (enemy != null)
+        {
+            enemy.isHurt = false;
+            enemy.isDead = false;
+            enemy.currentSpeed = config != null ? config.normalSpeed : enemy.normalSpeed;
+            enemy.faceDir = new Vector3(-transform.localScale.x, 0, 0);
+            enemy.attacker = null;
+        }
+
+        if (anim != null)
+        {
+            anim.SetBool("walk", false);
+            anim.SetBool("run", false);
+            anim.SetBool("dead", false);
+            anim.Rebind();
+            anim.Update(0f);
+        }
+
+        if (rb != null)
+        {
+            rb.velocity = Vector2.zero;
+        }
+
+        gameObject.layer = LayerMask.NameToLayer("Enemy");
     }
 
     // ============================================================

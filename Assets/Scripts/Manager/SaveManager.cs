@@ -1,192 +1,348 @@
+using System;
+using System.IO;
 using System.Text;
 using UnityEngine;
-using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 
 /// <summary>
-/// 存档管理器 - 负责玩家数据的保存和加载
-/// 使用 XOR 加密防止玩家篡改存档数据
+/// 存档管理器 — 基于 JSON 文件 + XOR 加密的持久化系统。
+///
+/// 特性：
+///   - 文件保存在 Application.persistentDataPath（跨平台可移植）
+///   - 支持 3 个独立存档槽
+///   - XOR 加密防止 casual 篡改
+///   - 自动从旧版 PlayerPrefs 格式迁移（向下兼容）
+///   - 支持删除存档
+///
+/// 面试可聊：为什么选 JSON 而非 BinaryFormatter/Protobuf？为什么文件而非 PlayerPrefs？
 /// </summary>
 public class SaveManager : Singleton<SaveManager>
 {
-    // 存储场景名称的键值
-    // string sceneName = "level";
-    [HideInInspector] public string sceneName;
+    private const string SaveFilePrefix = "OPJ_Save_";
+    private const string SlotIndexFile = "OPJ_SaveSlots.json";
+    private const string OldSaveKey = "level"; // 旧版 PlayerPrefs 场景名 key
 
-    // 加密密钥（简单 XOR 加密，仅供防止 casual 篡改）
-    private readonly byte[] encryptionKey = Encoding.UTF8.GetBytes("OPJ_SaveKey_2024");
+    // XOR 加密密钥
+    private readonly byte[] _key = Encoding.UTF8.GetBytes("OPJ_SaveKey_2024");
 
-    // private PlayerInputController inputControl;
+    [HideInInspector] public string sceneName = "level";
+
+    /// <summary> 存档根目录 </summary>
+    public static string SavePath => Application.persistentDataPath;
 
     /// <summary>
-    /// 获取存储的场景名称（从PlayerPrefs读取）
+    /// 获取上次存档场景名（带文件回退，即使未 Load 也能读取）。
     /// </summary>
-    public string SceneName { get { return PlayerPrefs.GetString(sceneName); } }
+    public string SceneName
+    {
+        get
+        {
+            if (_currentSave != null)
+                return _currentSave.sceneName;
+
+            // 回退：直接从文件读取槽 0
+            var save = LoadFromFile(0);
+            return save?.sceneName ?? "";
+        }
+    }
+
+    // 缓存
+    private SaveSlotManager _slotManager;
+    private SaveData _currentSave;
 
     protected override void Awake()
     {
         base.Awake();
-        DontDestroyOnLoad(this); // 保持跨场景不销毁
+        DontDestroyOnLoad(this);
+        LoadSlotIndex();
     }
 
-
-    // private void OnEnable()
-    // {
-    //     if (inputControl != null)
-    //     {
-    //         inputControl.Enable();
-    //     }
-    // }
-
-    // private void OnDisable()
-    // {
-    //     if (inputControl != null)
-    //     {
-    //         inputControl.Disable();
-    //     }
-    // }
-    void Update()
-    {
-        // // 按键事件处理
-        // if (Input.GetKeyDown(KeyCode.Escape))
-        // {
-        //     SceneController.Instance.TransitionToMain();
-        // }
-        // if (Input.GetKeyDown(KeyCode.I)) // 保存快捷键
-        // {
-        //     SavePlayerData();
-        //     Debug.Log("保存数据");
-        // }
-        // if (Input.GetKeyDown(KeyCode.O)) // 加载快捷键
-        // {
-        //     LoadPlayerData();
-        //     Debug.Log("加载数据");
-        // }
-    }
+    // ============================================================
+    //  公共 API
+    // ============================================================
 
     /// <summary>
-    /// 保存玩家数据（调用通用保存方法）
+    /// 保存玩家数据到指定存档槽。
     /// </summary>
-    public void SavePlayerData()
+    public void SavePlayerData(int slotIndex = 0, string label = "")
     {
-        Save(GameManager.Instance.characterStats.characterData,
-            GameManager.Instance.characterStats.characterData.name);
-    }
-
-    /// <summary>
-    /// 加载玩家数据（调用通用加载方法）
-    /// </summary>
-    public void LoadPlayerData()
-    {
-        Load(GameManager.Instance.characterStats.characterData,
-            GameManager.Instance.characterStats.characterData.name);
-    }
-
-    /// <summary>
-    /// 通用保存方法（带加密）
-    /// </summary>
-    /// <param name="data">要保存的数据对象</param>
-    /// <param name="key">存储键值</param>
-    public void Save(Object data, string key)
-    {
-        if (data == null)
+        var stats = GameManager.Instance?.characterStats;
+        if (stats == null || stats.characterData == null)
         {
-            Debug.LogError($"[SaveManager] 尝试保存空数据，key: {key}");
+            Debug.LogError("[SaveManager] 无法保存：characterStats 为空");
             return;
         }
 
-        var jsonData = JsonUtility.ToJson(data, true); // 序列化为JSON
-        string encryptedData = Encrypt(jsonData); // 加密
-        PlayerPrefs.SetString(key, encryptedData); // 保存加密后的数据
-        PlayerPrefs.SetString(sceneName, SceneManager.GetActiveScene().name); // 保存当前场景
-        Debug.Log("当前保存的场景是：" + SceneManager.GetActiveScene().name);
-        PlayerPrefs.Save(); // 立即写入磁盘
+        var cd = stats.characterData;
+        var save = new SaveData
+        {
+            maxHealth = cd.maxHealth,
+            currentHealth = cd.currentHealth,
+            maxPower = cd.maxPower,
+            currentPower = cd.currentPower,
+            minDamage = cd.minDamage,
+            maxDamage = cd.maxDamage,
+            criticalMultiplier = cd.criticalMultiplier,
+            criticalChance = cd.criticalChance,
+            currentLevel = cd.currentLevel,
+            maxLevel = cd.maxLevel,
+            baseExp = cd.baseExp,
+            currentExp = cd.currentExp,
+            sceneName = SceneManager.GetActiveScene().name,
+            characterDataName = cd.name,
+            saveTime = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+            slotIndex = slotIndex,
+            slotLabel = string.IsNullOrEmpty(label) ? "存档槽 " + (slotIndex + 1) : label
+        };
+
+        SaveToFile(save, slotIndex);
+        UpdateSlotInfo(save);
+        _currentSave = save;
+
+        Debug.Log($"[SaveManager] 存档成功 → 槽{slotIndex + 1}: {save.sceneName} (Lv.{save.currentLevel})");
     }
 
     /// <summary>
-    /// 通用加载方法（带解密）
+    /// 从指定存档槽加载玩家数据。
     /// </summary>
-    /// <param name="data">要加载到的数据对象</param>
-    /// <param name="key">存储键值</param>
-    public void Load(Object data, string key)
+    public void LoadPlayerData(int slotIndex = 0)
     {
-        if (data == null)
+        var save = LoadFromFile(slotIndex);
+        if (save == null)
         {
-            Debug.LogError($"[SaveManager] 尝试加载数据到空对象，key: {key}");
+            // 尝试从旧 PlayerPrefs 迁移
+            save = TryMigrateFromPlayerPrefs(slotIndex);
+        }
+
+        if (save == null)
+        {
+            Debug.LogWarning($"[SaveManager] 槽 {slotIndex + 1} 无存档");
             return;
         }
 
-        if (PlayerPrefs.HasKey(key))
+        var stats = GameManager.Instance?.characterStats;
+        if (stats == null || stats.characterData == null)
         {
-            string encryptedData = PlayerPrefs.GetString(key);
-            string jsonData = Decrypt(encryptedData); // 解密
-
-            if (string.IsNullOrEmpty(jsonData))
-            {
-                Debug.LogError($"[SaveManager] 解密失败，key: {key}");
-                return;
-            }
-
-            JsonUtility.FromJsonOverwrite(jsonData, data); // 覆盖现有数据
+            Debug.LogError("[SaveManager] 无法加载：characterStats 为空");
+            return;
         }
-        else
-        {
-            Debug.LogWarning($"[SaveManager] 未找到存档数据，key: {key}");
-        }
+
+        // 将存档数据写入 ScriptableObject
+        var cd = stats.characterData;
+        cd.maxHealth = save.maxHealth;
+        cd.currentHealth = save.currentHealth;
+        cd.maxPower = save.maxPower;
+        cd.currentPower = save.currentPower;
+        cd.minDamage = save.minDamage;
+        cd.maxDamage = save.maxDamage;
+        cd.criticalMultiplier = save.criticalMultiplier;
+        cd.criticalChance = save.criticalChance;
+        cd.currentLevel = save.currentLevel;
+        cd.maxLevel = save.maxLevel;
+        cd.baseExp = save.baseExp;
+        cd.currentExp = save.currentExp;
+
+        _currentSave = save;
+
+        Debug.Log($"[SaveManager] 读档成功 → 槽{slotIndex + 1}: {save.sceneName} (Lv.{save.currentLevel})");
     }
 
     /// <summary>
-    /// XOR 加密字符串
+    /// 删除指定存档槽。
     /// </summary>
-    private string Encrypt(string input)
+    public void DeleteSave(int slotIndex)
     {
-        byte[] inputBytes = Encoding.UTF8.GetBytes(input);
-        byte[] encryptedBytes = new byte[inputBytes.Length];
+        string path = GetFilePath(slotIndex);
+        if (File.Exists(path))
+            File.Delete(path);
 
-        for (int i = 0; i < inputBytes.Length; i++)
+        if (_slotManager != null && slotIndex < _slotManager.slots.Count)
         {
-            encryptedBytes[i] = (byte)(inputBytes[i] ^ encryptionKey[i % encryptionKey.Length]);
+            _slotManager.slots[slotIndex] = new SaveSlotInfo { index = slotIndex, isEmpty = true };
+            SaveSlotIndex();
         }
 
-        return System.Convert.ToBase64String(encryptedBytes);
+        Debug.Log($"[SaveManager] 已删除存档 → 槽{slotIndex + 1}");
     }
 
     /// <summary>
-    /// XOR 解密字符串
+    /// 获取当前存档（用于 SceneController 读取场景名）。
     /// </summary>
-    private string Decrypt(string input)
+    public SaveData GetCurrentSave() => _currentSave;
+
+    /// <summary>
+    /// 获取存档槽列表（用于 UI 展示）。
+    /// </summary>
+    public SaveSlotManager GetSlotManager()
     {
+        if (_slotManager == null)
+            LoadSlotIndex();
+        return _slotManager;
+    }
+
+    // ============================================================
+    //  文件 I/O（核心）
+    // ============================================================
+
+    private void SaveToFile(SaveData data, int slotIndex)
+    {
+        string json = JsonUtility.ToJson(data, true);
+        string encrypted = Encrypt(json);
+        string path = GetFilePath(slotIndex);
+        File.WriteAllText(path, encrypted);
+    }
+
+    private SaveData LoadFromFile(int slotIndex)
+    {
+        string path = GetFilePath(slotIndex);
+        if (!File.Exists(path)) return null;
+
         try
         {
-            byte[] encryptedBytes = System.Convert.FromBase64String(input);
-            byte[] decryptedBytes = new byte[encryptedBytes.Length];
-
-            for (int i = 0; i < encryptedBytes.Length; i++)
-            {
-                decryptedBytes[i] = (byte)(encryptedBytes[i] ^ encryptionKey[i % encryptionKey.Length]);
-            }
-
-            return Encoding.UTF8.GetString(decryptedBytes);
+            string encrypted = File.ReadAllText(path);
+            string json = Decrypt(encrypted);
+            if (string.IsNullOrEmpty(json)) return null;
+            return JsonUtility.FromJson<SaveData>(json);
         }
-        catch (System.Exception e)
+        catch (Exception e)
         {
-            Debug.LogError($"[SaveManager] 解密失败: {e.Message}");
+            Debug.LogError($"[SaveManager] 读取存档失败 → 槽{slotIndex + 1}: {e.Message}");
             return null;
         }
     }
 
-    /// <summary>
-    /// 测试用方法：增加角色最大生命值
-    /// </summary>
-    public void TestAddHealth()
+    private static string GetFilePath(int slotIndex)
     {
-        if (GameManager.Instance != null && GameManager.Instance.characterStats != null)
+        return Path.Combine(SavePath, $"{SaveFilePrefix}{slotIndex}.dat");
+    }
+
+    // ============================================================
+    //  存档槽索引管理
+    // ============================================================
+
+    private void LoadSlotIndex()
+    {
+        string path = Path.Combine(SavePath, SlotIndexFile);
+        if (File.Exists(path))
         {
-            GameManager.Instance.characterStats.MaxHealth += 100;
+            try
+            {
+                string json = File.ReadAllText(path);
+                _slotManager = JsonUtility.FromJson<SaveSlotManager>(json);
+            }
+            catch
+            {
+                _slotManager = new SaveSlotManager();
+            }
         }
         else
         {
-            Debug.LogWarning("[SaveManager] GameManager.Instance 或 characterStats 为空，无法增加生命值");
+            _slotManager = new SaveSlotManager();
+        }
+
+        // 同步文件系统中的实际状态
+        for (int i = 0; i < _slotManager.slots.Count; i++)
+        {
+            bool fileExists = File.Exists(GetFilePath(i));
+            _slotManager.slots[i].isEmpty = !fileExists;
+        }
+    }
+
+    private void SaveSlotIndex()
+    {
+        string path = Path.Combine(SavePath, SlotIndexFile);
+        string json = JsonUtility.ToJson(_slotManager, true);
+        File.WriteAllText(path, json);
+    }
+
+    private void UpdateSlotInfo(SaveData data)
+    {
+        if (_slotManager == null) LoadSlotIndex();
+        if (data.slotIndex >= _slotManager.slots.Count) return;
+
+        _slotManager.slots[data.slotIndex] = new SaveSlotInfo
+        {
+            index = data.slotIndex,
+            isEmpty = false,
+            label = data.slotLabel,
+            saveTime = data.saveTime,
+            sceneName = data.sceneName,
+            level = data.currentLevel
+        };
+
+        SaveSlotIndex();
+    }
+
+    // ============================================================
+    //  旧版 PlayerPrefs 迁移（向下兼容）
+    // ============================================================
+
+    private SaveData TryMigrateFromPlayerPrefs(int targetSlot)
+    {
+        // 使用旧版 API 的 key（character data name）检测是否有旧存档
+        var stats = GameManager.Instance?.characterStats;
+        if (stats == null || stats.characterData == null) return null;
+
+        string oldKey = stats.characterData.name;
+        if (!PlayerPrefs.HasKey(oldKey)) return null;
+
+        try
+        {
+            string encrypted = PlayerPrefs.GetString(oldKey);
+            string json = Decrypt(encrypted);
+            if (string.IsNullOrEmpty(json)) return null;
+
+            var oldData = JsonUtility.FromJson<SaveData>(json);
+            if (oldData == null) return null;
+
+            oldData.slotIndex = targetSlot;
+            oldData.slotLabel = "迁移自旧版存档";
+
+            // 保存为新格式
+            SaveToFile(oldData, targetSlot);
+            UpdateSlotInfo(oldData);
+
+            // 清除旧 PlayerPrefs（可选，保留以备用）
+            // PlayerPrefs.DeleteKey(oldKey);
+            // PlayerPrefs.DeleteKey(OldSaveKey);
+
+            Debug.Log($"[SaveManager] 已从旧版 PlayerPrefs 迁移存档 → 槽{targetSlot + 1}");
+            return oldData;
+        }
+        catch (Exception e)
+        {
+            Debug.LogWarning($"[SaveManager] 旧版存档迁移失败: {e.Message}");
+            return null;
+        }
+    }
+
+    // ============================================================
+    //  XOR 加密/解密
+    // ============================================================
+
+    private string Encrypt(string input)
+    {
+        byte[] inputBytes = Encoding.UTF8.GetBytes(input);
+        byte[] encrypted = new byte[inputBytes.Length];
+        for (int i = 0; i < inputBytes.Length; i++)
+            encrypted[i] = (byte)(inputBytes[i] ^ _key[i % _key.Length]);
+        return Convert.ToBase64String(encrypted);
+    }
+
+    private string Decrypt(string input)
+    {
+        try
+        {
+            byte[] encrypted = Convert.FromBase64String(input);
+            byte[] decrypted = new byte[encrypted.Length];
+            for (int i = 0; i < encrypted.Length; i++)
+                decrypted[i] = (byte)(encrypted[i] ^ _key[i % _key.Length]);
+            return Encoding.UTF8.GetString(decrypted);
+        }
+        catch (Exception e)
+        {
+            Debug.LogError($"[SaveManager] 解密失败: {e.Message}");
+            return null;
         }
     }
 }
